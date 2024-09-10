@@ -99,6 +99,8 @@ class latex_table:
         # self.data = pd.DataFrame(data)
         # self.titles = list(column_titles)
         # self.format_options["precision"] = [6] * self.cols
+        self.uncertanty = np.zeros_like(self.data)
+        self.formaters = np.full_like(self.data, "{}")
         self.format_options = {"style" : "booktabs",
                                "nan_char" : r"\,",
                                "linebreak" : r"\\",
@@ -144,14 +146,41 @@ r"""\begin¤[table¤][{position}]
     body = self._make_table_body(), **self.table_options))
         
     
-    # add_uncertanty
+    def set_uncertanty(self, array, idx = None):
+        if isinstance(idx, type(None)) and array.shape != (self.cols, self.rows):
+            raise ValueError("")
+        elif isinstance(idx, type(None)):
+            self.uncertanty = array
+        elif isinstance(idx, slice) or isinstance(idx, int):
+            self.uncertanty.T[idx] = array
+            
+            
+        
+        
+        
     """=== WIP ==="""
     # make_multirow
     """=== WIP ==="""
     # make_multicol
     """=== WIP ==="""
-    # formater 
-    
+    def set_formater(self, format_string, col = "full", row = "full"):
+        common_latex_formats = {"bf" : r"\textbf¤[{}¤]",
+                                "it" : r"\textit¤[{}¤]",
+                                "ul" : r"¤[\ul{}¤]",
+                                "$$" : "${}$"}
+        if format_string.lower() in common_latex_formats:
+            format_string = common_latex_formats[format_string]
+        else:
+            format_string = format_string.replace("{}", "¤[¤]").replace(
+            "{", "¤[").replace("}", "¤]").replace("¤[¤]", "¤[{}¤]")
+        if col == "full" and row == "full":
+            self.formaters[:,:] = format_string
+        elif col == "full":
+            self.formaters[:][row] = format_string
+        elif row == "full":
+            self.formaters[col][:] = format_string
+        else:
+            self.formaters[col][row] = format_string
     """
     =======
     Setters
@@ -216,7 +245,7 @@ r"""\begin¤[table¤][{position}]
                     
     def set_alignment(self, string):
         if len(string.replace("|", "")) < self.cols:
-            raise ValueError("The number of alignment charaters must equal "
+            raise ValueError("The number of alignment is less than"
                              f"the number of columns. Current number of columns: {self.cols}")
         self.table_options["alignment"] = string
         
@@ -281,13 +310,19 @@ r"""\begin¤[table¤][{position}]
         The function that makes the tabular of the table
         """
         str_data = [] # Data array with all values as strings
-        def format_column_element(i, p):
+        def format_column_element(i, p, error):            
             if isinstance(i, str): # Dont format strings as floats, its bad
-                return i
+                formater_string = "{}"
+            elif not np.isclose(error, 0):
+                formater_string = r"\num¤[{0:.{1}f} \pm {2:.{1}f}¤]"
             else:
-                return "{0:.{1}f}".format(i, p)
+                formater_string = "{0:.{1}f}"
+                
+            return self._format_brackets(formater_string.format(i, p , error))
+            
         for i, column in enumerate(self.data.T):
-            str_data.append(np.vectorize(format_column_element)(column, self.format_options["precision"][i]))
+            str_data.append(np.vectorize(format_column_element)(
+                column, self.format_options["precision"][i], (self.uncertanty.T)[i]))
         str_data = np.array(str_data).T
 
         body = "" # String containing the tabluar
@@ -326,8 +361,13 @@ lt.set_lines("grid")
 latex_table.__doc__
 lt.set_options(alignment = "cc|c|cc")
 lt.set_options(precision = [1,1,4,5])
+
+lt.set_uncertanty(np.linspace(1,2, 4).reshape((1,4)), slice(3,4))
+
 lt.save("test")
-print(lt)
 
+lt.set_formater("bf", 2, slice(1,3))
+print(lt.formaters)
 
+#r"\text{\textbf{}}".replace("{}", "¤[¤]").replace("{", "¤[").replace("}", "¤]").replace("¤[¤]", "¤[{}¤]")
 

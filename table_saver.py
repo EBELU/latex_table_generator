@@ -22,7 +22,6 @@ class latex_table:
     -----------------
     =================
     
-    
     Turn python datasets into a latex table.
             
     Constructor 
@@ -34,11 +33,11 @@ class latex_table:
         
         1. latex_table(ndarray, column_titles = list, **kwargs)
         Given a single 2D-numpy array, the columns of the array representing the columns in the table.
-        column_titles must given as a keyword argument.
+        'titles' must given as a keyword argument.
         
         2. latex_table(arr_titles, arr_0, arr_1,..., **kwargs)
         Given an arbitrary number of 1D-arrays representing the columns of the table. 
-        If column_titles is empty the first array given is implicitly set as the titels.
+        If the 'titles'-argument is empty the first array given is implicitly set as the titels.
         The arrays are not required to be of the same length.
         
         3. latex_table(dict, **kwargs)
@@ -46,17 +45,20 @@ class latex_table:
         The indices are interpreted as the column titles.
         The arrays are not required to be of the same length.
     
-    titles:
+    titles: array-like
         Array like object containing strings och tuples/lists of strings representing the column titles of the tables.
         The array must have the same length as the number of column in the table.
         A tuple/list given as a single title will be expanded into a titles consiting of several rows.
         
-    label:
+    label: str
         The label placed into \label{...} of the table.
         'tab:' is added by default.
         
-    caption:
-        The text placed into \caption{...} of the table
+    caption: str
+        The text placed into \caption{...} of the table.
+        
+    **kwargs:
+        Key word arguments passed to the set_options method.
         
         
     -> Returns:
@@ -68,7 +70,30 @@ class latex_table:
     
     Special Member Variables
     -------------------------------------------------
-    latex_table.
+    
+    latex_table.table_path:
+        Lists the path to the directory where the saved tables will be placed.
+        It is static and typically only needs to be set one at the start of the script.
+    
+    Examples
+    -------------------------------------------------
+
+    Ex 1.
+        numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
+        [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
+        
+        isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
+        
+        A_error = [5,7,8,5]
+        
+        lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
+        isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
+        
+        lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
+        
+        lt.set_options(precision = [0,0,2,4,0], alignment = "lcccc") # Set the number of decimals on each column
+        
+        lt.set_uncertanty(A_error, -1) # Set error for the last column
     
     """
    
@@ -78,29 +103,48 @@ class latex_table:
     def __init__(self, *data, titles: list = [], label: str = "", caption: str = "", **kwargs) -> "latex_table":  
         import numpy as np
         if len(data) > 1:
-            data_lists = list(data[1:])
+            if len(titles):
+                data_lists = data
+                self.titles = [titles]
+            else:
+                data_lists = list(data[1:])
+                self.titles = [data[0]]
             self.rows = len(max(data_lists, key = len))
             self.cols = len(data_lists)
             temp_data = np.full((self.cols, self.rows), r"\,", dtype=object)
             for i,L in enumerate(data_lists):
                 temp_data[i][:len(L)] = L
             self.data = temp_data.T
-            self.titles = data[0]
         elif isinstance(data[0], dict):
-            """=== WIP ==="""
-            pass
+            self.titles = [list(data[0].keys())]
+            data_lists = list(data[0].values())
+            self.rows = len(max(data_lists, key = len))
+            self.cols = len(data_lists)
+            temp_data = np.full((self.cols, self.rows), r"\,", dtype=object)
+            for i,L in enumerate(data_lists):
+                temp_data[i][:len(L)] = L
+            self.data = temp_data.T
+            
         else:
             if not titles:
                 raise ValueError("column_titles must be specified as a keyword")
             self.data = data[0]
-            self.titles = list(titles)
+            self.titles = [list(titles)]
             self.rows, self.cols  = self.data.shape
-            
+        
+        if len(self.titles[0]) != self.cols:
+            raise AssertionError(f"The length of title array, {len(self.titles) }, "
+                                 f"does not match the number of columns, {self.cols}"
+                                 f"\nAttempted title array: {self.titles}")
         # self.data = pd.DataFrame(data)
         # self.titles = list(column_titles)
-        # self.format_options["precision"] = [6] * self.cols
+        # self.format_options["precision"] = [6] * self.cols       
+        # self.titles *= 2
+        
+        
+        # self.titles[1] = ["", "", r"\multicolumn{2}{c}{Multi}"]
         self.uncertanty = np.zeros_like(self.data)
-        self.formaters = np.full_like(self.data, "{}")
+        self.formaters = np.full_like(self.data, "{}", dtype=object)
         self.format_options = {"style" : "booktabs",
                                "nan_char" : r"\,",
                                "linebreak" : r"\\",
@@ -108,11 +152,11 @@ class latex_table:
         self.table_options = {"caption" : caption,
                         "label" : f"tab:{label}",
                         "position" : "H",
-                        "alignment" : "S" * self.cols,
+                        "alignment" : "c" * self.cols,
                         "position_float": r"\centering"}
         self.set_options(**kwargs)
         
-    # def inset(self, idx, title, data):
+
         
     def save(self, buf, abspath = False):
         """
@@ -163,7 +207,21 @@ r"""\begin¤[table¤][{position}]
     """=== WIP ==="""
     # make_multicol
     """=== WIP ==="""
-    def set_formater(self, format_string, col = "full", row = "full"):
+    # def inset(self, idx, title, data):
+        
+        
+    def set_formater(self, format_string, col = "single", row = "single"):
+        """Sets format options for the tabular. A latex command like \macro{} will be interpreted as \macro{tabular_cell}. 
+        A command can be applied to entire row or column by only indexing one or the other. 
+        Slices are also accepted.
+        
+        If given a string without {} it will replace the content of the cell with the string.
+
+        Args:
+            format_string (str): Latex command to apply.
+            col (int/slice, optional): Column index. Defaults to "full".
+            row (int/slice, optional): Row index. Defaults to "full".
+        """        
         common_latex_formats = {"bf" : r"\textbf¤[{}¤]",
                                 "it" : r"\textit¤[{}¤]",
                                 "ul" : r"¤[\ul{}¤]",
@@ -173,14 +231,20 @@ r"""\begin¤[table¤][{position}]
         else:
             format_string = format_string.replace("{}", "¤[¤]").replace(
             "{", "¤[").replace("}", "¤]").replace("¤[¤]", "¤[{}¤]")
-        if col == "full" and row == "full":
+        if isinstance(col, str) and isinstance(row, str):
             self.formaters[:,:] = format_string
-        elif col == "full":
-            self.formaters[:][row] = format_string
-        elif row == "full":
-            self.formaters[col][:] = format_string
+        elif isinstance(col, str) and not isinstance(row, str):
+
+            self.formaters[row,:] = format_string
+        elif not isinstance(col, str) and isinstance(row, str):
+            print("hej")
+            self.formaters[:,col] = format_string
         else:
-            self.formaters[col][row] = format_string
+            self.formaters[col,row] = format_string
+            
+   
+
+    
     """
     =======
     Setters
@@ -195,7 +259,7 @@ r"""\begin¤[table¤][{position}]
              'caption': '', 
              'label': 'tab:', 
              'position': 'H', 
-             'alignment': 'S...S', 
+             'alignment': 'c...c', 
              'position_float': '\\centering'
              
         Default format_options:
@@ -223,7 +287,7 @@ r"""\begin¤[table¤][{position}]
             else:
                 raise KeyError(f"Key '{key}' is not viable option")
     
-    def add_units(self, unit_array, encapsulation = "$[]$"):
+    def set_units(self, unit_array, encapsulation = "$[]$"):
         r"""
         Takes a list of strings compatible with the siunitx function \unit{}.
         The length of the list must match the number of columns, a column without a unit is left as an empty string.
@@ -232,15 +296,20 @@ r"""\begin¤[table¤][{position}]
         Ex:
             latex_table.set_units([r"\kilo\electronvolt"]) -> [keV]
         """
+        
+        if len(unit_array) != self.cols:
+            raise ValueError(f"The length of the unit array, {len(unit_array)}, "
+                             f"must match the number of columns in the table, {self.cols}."
+                             "\n\tIf no unit is desired for a column title leave en empty string '' ")
         half_enc_len = len(encapsulation) // 2
         for i, unit in enumerate(unit_array):
             if unit:
-                if not isinstance(self.titles[i], str):
+                if not isinstance(self.titles[0][i], str):
                     # If the title element is already a tuple it is extended. * breaks the old tuple
-                    self.titles[i] = (*self.titles[i], encapsulation[:half_enc_len] + 
+                    self.titles[0][i] = (*self.titles[0][i], encapsulation[:half_enc_len] + 
                                   self._format_brackets(fr"\unit¤[{unit}¤]") + encapsulation[half_enc_len:])
                 else:
-                    self.titles[i] = (self.titles[i], encapsulation[:half_enc_len] + 
+                    self.titles[0][i] = (self.titles[0][i], encapsulation[:half_enc_len] + 
                                   self._format_brackets(fr"\unit¤[{unit}¤]") + encapsulation[half_enc_len:])
                     
     def set_alignment(self, string):
@@ -255,9 +324,9 @@ r"""\begin¤[table¤][{position}]
         else:
             if len(new_precision) != self.cols:
                 raise ValueError("A precision must be specified for each column or universally with and int."
-                                 f"Current columns: {self.cols}")
+                                 f" Current columns: {self.cols}, given array was {len(new_precision)}")
             self.format_options["precision"] = list(new_precision)
-    def set_lines(self, string):
+    def set_style(self, string):
         """
         Change the design of the table to use 'booktabs' or 'grid'
         """
@@ -282,35 +351,36 @@ r"""\begin¤[table¤][{position}]
         """
         The function that makes the title row for the table
         """
-        title = [] 
+        title_str = ""
         def sub_tubular(L):
             """Breaks up a multi-row title into a tabular"""
             tabular = r"\begin{tabular}{c} "
             for string in L:
                 tabular += (string + r" \\ ")
             return tabular + r"\end{tabular}"
-    
-        for column_title in self.titles:
-            if not isinstance(column_title, str):
-                # If the title element is not a sting its sent to be broken up
-                title.append(sub_tubular(column_title))
-            else:
-                title.append(str(column_title))
-                
+        for title_row in reversed(self.titles):
+            title = []
+            for column_title in title_row:
+                if not isinstance(column_title, str):
+                    # If the title element is not a sting its sent to be broken up
+                    title.append(sub_tubular(column_title))
+                else:
+                    title.append(str(column_title))
+            title_str += (self._make_table_row(title, r"\\") + "\n\t\t")
+            
         # Make final touches depending on design of the table
         if self.format_options["style"] == "booktabs":
-            return (r"\toprule" + "\n\t\t") + self._make_table_row(title, "") + (r"\\" + "\n\t\t" + r"\midrule")
+            return (r"\toprule" + "\n\t\t") + title_str + "\n\t\t" + r"\midrule"
         elif self.format_options["style"] == "grid":
-            return (r"\hline" + "\n\t\t") + self._make_table_row(title, "") + (r"\\" + "\n\t\t" + r"\hline")
-        
-        return self._make_table_row(title, "") # Not needed?
+            return (r"\hline" + "\n\t\t") + title_str + "\n\t\t" + r"\hline"
+    
         
     def _make_table_body(self) -> str:
         """
         The function that makes the tabular of the table
         """
         str_data = [] # Data array with all values as strings
-        def format_column_element(i, p, error):            
+        def format_column_element(i, p, error, formater):            
             if isinstance(i, str): # Dont format strings as floats, its bad
                 formater_string = "{}"
             elif not np.isclose(error, 0):
@@ -318,11 +388,11 @@ r"""\begin¤[table¤][{position}]
             else:
                 formater_string = "{0:.{1}f}"
                 
-            return self._format_brackets(formater_string.format(i, p , error))
+            return self._format_brackets(formater.format(formater_string.format(i, p , error)))
             
         for i, column in enumerate(self.data.T):
             str_data.append(np.vectorize(format_column_element)(
-                column, self.format_options["precision"][i], (self.uncertanty.T)[i]))
+                column, self.format_options["precision"][i], (self.uncertanty.T)[i], (self.formaters.T)[i]))
         str_data = np.array(str_data).T
 
         body = "" # String containing the tabluar
@@ -353,21 +423,46 @@ r"""\begin¤[table¤][{position}]
         except TypeError:
             return False
 
-latex_table.table_path = "/home/eewa/Desktop/"
-lt = latex_table(["Apa", ("AB", "AA"), "C", "D"], np.full((4,), "A"), *np.linspace(1, 2, 12).reshape((3,4)),
-                 label="tabel", caption="This is nice table")
-lt.add_units([r"", r"\g", r"\g", r"\g"])
-lt.set_lines("grid")
-latex_table.__doc__
-lt.set_options(alignment = "cc|c|cc")
-lt.set_options(precision = [1,1,4,5])
+if __name__ == "__main__":
+    latex_table.table_path = "/home/eewa/Documents/Kurser/MSFN02/Bildbehandling/Datorövningar/övn_rapport/"
+    # lt = latex_table(["Apa", ("AB", "AA"), "C", "D"], np.full((4,), "A"), *np.linspace(1, 2, 12).reshape((3,4)),
+    #                  label="tabel", caption="This is nice table")
+    # lt.add_units([r"", r"\g", r"\g", r"\g"])
+    # lt.set_lines("grid")
+    # latex_table.__doc__
+    # lt.set_options(alignment = "cc|c|cc")
+    # lt.set_options(precision = [1,1,4,5])
+    
+    # lt.set_uncertanty(np.linspace(1,2, 4).reshape((1,4)), slice(3,4))
+    
+    # lt.save("test")
+    
+    # print(lt.format_options.values())
+    
+    numpy_array_with_data = (np.array([[1332, 1173, 662, 356],
+                                      [1.00, 1.00, 0.85, 0.62],
+                                      [5.2711, 5.2711, 30.018, 10.539],
+                                      [392, 392, 346, 368]])) # Transpose to get correct col-row
+    
 
-lt.set_uncertanty(np.linspace(1,2, 4).reshape((1,4)), slice(3,4))
+    numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
+    [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
+    
+    isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
+    
+    A_error = [5,7,8,5]
+    
+    lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
+    isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
+    
+    lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
+    
+    lt.set_options(precision = [0,0,2,4,0], alignment = "lcccc") # Set the number of decimals on each column
+    
+    lt.set_uncertanty(A_error, -1) # Set error for the last column
+    
+    lt.save("test_table")
+    print(lt)
 
-lt.save("test")
 
-lt.set_formater("bf", 2, slice(1,3))
-print(lt.formaters)
-
-#r"\text{\textbf{}}".replace("{}", "¤[¤]").replace("{", "¤[").replace("}", "¤]").replace("¤[¤]", "¤[{}¤]")
 

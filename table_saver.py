@@ -143,12 +143,31 @@ class latex_table:
         
         
         # self.titles[1] = ["", "", r"\multicolumn{2}{c}{Multi}"]
+        
         self.uncertanty = np.zeros_like(self.data)
         self.formaters = np.full_like(self.data, "{}", dtype=object)
         self.format_options = {"style" : "booktabs",
                                "nan_char" : r"\,",
                                "linebreak" : r"\\",
                                "precision" : [6] * self.cols}
+        
+        for i, column in enumerate(self.data.T):
+            most_decialms = min(np.array(column, dtype = str)) # Convert to strings and find smallest value
+            # Handle floats that are ints and ints, these have no decimals
+            if most_decialms.endswith(".0") or isinstance(min(column), int):
+                self.format_options["precision"][i] = 0
+            else:
+                # If something throws, ignore and dont change
+                try:
+                    print(most_decialms.split("."))
+                    decimal_points = len(most_decialms.split(".")[1]) # Insolate decimals
+                    if not isinstance(decimal_points, int):
+                        # If something borks in the prevoius ex. return None, throw something
+                        raise ValueError
+                    self.format_options["precision"][i] = decimal_points
+                except:
+                    pass
+            
         self.table_options = {"caption" : caption,
                         "label" : f"tab:{label}",
                         "position" : "H",
@@ -452,16 +471,24 @@ if __name__ == "__main__":
     
     A_error = [5,7,8,5]
     
-    lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
-    isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
+    # lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
+    # isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
     
-    lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
+    # lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
     
-    lt.set_options(precision = [0,0,2,4,0], alignment = "lcccc") # Set the number of decimals on each column
+    # lt.set_options(precision = [0,0,2,4,0], alignment = "lcccc") # Set the number of decimals on each column
     
-    lt.set_uncertanty(A_error, -1) # Set error for the last column
+    # lt.set_uncertanty(A_error, -1) # Set error for the last column
     
-    lt.save("test_table")
+    # lt.save("test_table")
+    # print(lt)
+    
+    samples = ['A', 'B']
+    data = [1, 2]
+    
+    lt = latex_table(['Samples', 'Data'], samples, data)
+    
+    lt = latex_table({'Sample' : ['A', 'B'], 'Data' : [1, 2]})
     print(lt)
 
 

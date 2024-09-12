@@ -50,6 +50,12 @@ class multicolumn:
         if any(np.isin(span_idx, self.occpied_indices)):
             raise IndexError(r"Multicolumns collide at index"
                              f" {span_idx[np.isin(span_idx, self.occpied_indices)]}")
+            
+    def shift(self, index):
+        self.row_list.insert(0, "")
+        self.occpied_indices += 1
+        self.columns += 1
+        
     def __str__(self):
         return format_brackets(make_table_row(
             self.row_list, r"\\") + "\t" + "".join(self.clines) + "\n\t\t")
@@ -333,7 +339,22 @@ r"""\begin¤[table¤][{position}]
     """=== WIP ==="""
     # make_multirow
     """=== WIP ==="""
-    def make_multicolumn(self, target, row_idx, start_idx, span, content, cline = False, alignment = "c"):
+    def make_multicolumn(self, target: str, row_idx: int, start_idx: int, span: int, content: str, cline = False, alignment:str = "c"):
+        """Insert a multicolumn into the table. It is recommended to do this after any multirows has been inserted to avoid yankyness.
+
+        Args:
+            target (str): Choose where to insert the multicolumn, options are 'title'/'tabular' 
+            row_idx (int): Desired index of the row containing the multicolumn
+            start_idx (int): Index of the column where the multicolumn starts.
+            span (int): How many columns the multicolumn should cover.
+            content (str): Text to be displayed in the multicolumn
+            cline (bool, optional): Set clines to the row containing the multicolumn. Options are:
+            - True: The cline follows the multicolumn
+            - 'hline': Removes all other cline options for the row and inserts \hline under the row.
+            - str: An arbitrary that is placed inside \clines{}
+            Defaults to False.
+            alignment (str, optional): Sets the alignment of the multicolumn. Defaults to "c".
+        """        
         placement_L = [mc.placement for mc in self.multicolumns[target]]
         if row_idx in placement_L:
             idx = placement_L.index(row_idx)
@@ -344,6 +365,28 @@ r"""\begin¤[table¤][{position}]
             row = multicolumn(self.cols, row_idx)
             row.add_multicol(start_idx, span, content, cline, alignment)
             self.multicolumns[target].append(row)
+            
+    def make_multirow(self, column_idx:int, start_idx:int, span:int, content:str, replace:bool = False):
+        """Creates a multirow in the table. Either by inserting a new column or replacing elements.
+
+        Args:
+            column_idx (int): The desired index of the new column or index of column of column to be modified.
+            start_idx (int): Index of the column where the multirow starts.
+            span (int): How many rows the multirow should cover
+            content (str): Text to be displayed in the multirow
+            replace (bool, optional): If False a new column is inserted with the multirow. If True existing element are erased to fit the multicolumn . Defaults to False.
+        """        
+        new_title_col = np.array([""] * len(self.titles), dtype=object)
+        new_tab_col = np.array([""] * self.rows, dtype=object)
+        multirow = format_brackets(fr"\multirow¤[{start_idx + 1}¤]¤[*¤]¤[{content}¤]")
+        new_tab_col[start_idx] = multirow
+        if replace:
+            for i in range(span):
+                self.data.T[column_idx][start_idx + i] = ""
+            self.data.T[column_idx][start_idx] = multirow
+        else:
+            self._insert(new_tab_col, column_idx, "col", title_array=new_title_col)
+        
             
     """=== WIP ==="""
     # def inset_column(self, idx, title, data):
@@ -562,12 +605,16 @@ r"""\begin¤[table¤][{position}]
     
     def _insert(self, array, index, axis, target = None, title_array = []):
 
+        print(axis)
         if axis == "col": # Change columns
             new_titles = np.insert(self.titles.copy(), index, title_array, axis = 1)
             new_tabular = np.insert(self.data.copy(), index, array, axis = 1)
             
-            
-            # print(new_titles, "\n\n", new_tabular)
+            print(new_titles, "\n\n", new_tabular)
+            self.formaters = np.insert(self.formaters, index, "{}", axis=1)
+            self.uncertanty = np.insert(self.uncertanty, index, 0, axis=1)
+            self.format_options["precision"].insert(index, 0)
+            self.cols += 1
         elif axis == "row": # Change row
             new_titles = list(self.titles.copy())
             new_tabular = list(self.data.copy())
@@ -575,12 +622,14 @@ r"""\begin¤[table¤][{position}]
                 new_titles.insert(index, array)
             elif target == "tabular":
                 new_tabular.insert(index, array)
-            
-            self.data = np.array(new_tabular, dtype=object)
-            self.titles = np.array(new_titles, dtype=object)
-            self.formaters = np.insert(self.formaters, index, "{}", axis=0)
-            self.uncertanty = np.insert(self.uncertanty, index, "{}", axis=0)
+                
+                self.formaters = np.insert(self.formaters, index, "{}", axis=0)
+                self.uncertanty = np.insert(self.uncertanty, index, 0, axis=0)
+                
             self.rows += 1
+            
+        self.data = np.array(new_tabular, dtype=object)
+        self.titles = np.array(new_titles, dtype=object)
         # print(np.array(new_titles, dtype = object), "\n\n", np.array(new_tabular, dtype = object), "\n\n" )
 
 if __name__ == "__main__":
@@ -598,10 +647,14 @@ if __name__ == "__main__":
     lt.make_multicolumn("title", 1, 1, 1, "content")
     lt.make_multicolumn("title", 2, 0, 2, "content", cline = True)
     
-    lt._insert(np.array(["H", "G"]), "row", 1, target="tabular")
+    # lt._insert(np.array(["H", "G"]), index = 2, axis = "col",  title_array=["Hello"])
+    
+    lt.make_multirow(0, 0, 2, "content")
+    lt.make_multirow(0, 1, 1, "contentdwaiuhi", True)
+    print(lt)
     # lt._insert(np.array(["h", 2]), 0, 1, target = "tabular")
 
-
+    lt.set_style("grid")
     latex_table.table_path = "/home/eewa/Documents/Kurser/MSFN02/Bildbehandling/Datorövningar/övn_rapport/"
     # lt = latex_table(["Apa", ("AB", "AA"), "C", "D"], np.full((4,), "A"), *np.linspace(1, 2, 12).reshape((3,4)),
     #                   label="tabel", caption="This is nice table")
@@ -615,7 +668,7 @@ if __name__ == "__main__":
     
     # lt.save("test")
     
-    print(lt)
+    # lt.save("test_table")
     
     # numpy_array_with_data = (np.array([[1332, 1173, 662, 356],
     #                                   [1.00, 1.00, 0.85, 0.62],

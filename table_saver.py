@@ -332,13 +332,6 @@ r"""\begin¤[table¤][{position}]
         elif isinstance(idx, slice) or isinstance(idx, int):
             self.uncertanty.T[idx] = array
             
-            
-        
-        
-        
-    """=== WIP ==="""
-    # make_multirow
-    """=== WIP ==="""
     def make_multicolumn(self, target: str, row_idx: int, start_idx: int, span: int, content: str, cline = False, alignment:str = "c"):
         """Insert a multicolumn into the table. It is recommended to do this after any multirows has been inserted to avoid yankyness.
 
@@ -365,6 +358,7 @@ r"""\begin¤[table¤][{position}]
             row = multicolumn(self.cols, row_idx)
             row.add_multicol(start_idx, span, content, cline, alignment)
             self.multicolumns[target].append(row)
+
             
     def make_multirow(self, column_idx:int, start_idx:int, span:int, content:str, replace:bool = False):
         """Creates a multirow in the table. Either by inserting a new column or replacing elements.
@@ -386,6 +380,10 @@ r"""\begin¤[table¤][{position}]
             self.data.T[column_idx][start_idx] = multirow
         else:
             self._insert(new_tab_col, column_idx, "col", title_array=new_title_col)
+            for multicol in self.multicolumns["title"]:
+                multicol.shift(column_idx)
+            for multicol in self.multicolumns["tabular"]:
+                multicol.shift(column_idx)
         
             
     """=== WIP ==="""
@@ -654,7 +652,7 @@ if __name__ == "__main__":
     print(lt)
     # lt._insert(np.array(["h", 2]), 0, 1, target = "tabular")
 
-    lt.set_style("grid")
+    # lt.set_style("grid")
     latex_table.table_path = "/home/eewa/Documents/Kurser/MSFN02/Bildbehandling/Datorövningar/övn_rapport/"
     # lt = latex_table(["Apa", ("AB", "AA"), "C", "D"], np.full((4,), "A"), *np.linspace(1, 2, 12).reshape((3,4)),
     #                   label="tabel", caption="This is nice table")
@@ -668,7 +666,7 @@ if __name__ == "__main__":
     
     # lt.save("test")
     
-    # lt.save("test_table")
+    lt.save("test_table")
     
     # numpy_array_with_data = (np.array([[1332, 1173, 662, 356],
     #                                   [1.00, 1.00, 0.85, 0.62],

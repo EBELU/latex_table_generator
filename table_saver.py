@@ -1,11 +1,90 @@
-#!/home/eewa/anaconda3/bin/python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Sep  9 10:43:17 2024
 
-@author: Erik Ewald
-"""
 
+r"""
+    =================
+    -----------------
+    LaTeX Table Saver
+    -----------------
+    =================
+    
+    Provides the *latex_table* class to turn sets of data into latex table.
+    
+    This module also allows for some formating of the table, like precision in numbers, adding multicolumns
+    or multirows and smoothly applies units to column titles (requiers siunitx).
+    
+    @author: Erik Ewald
+    
+    Class Methods
+    -------------------------------------------------
+    *latex_table*.make_multicolumn:
+        Makes at multicolumn in the table
+        
+    *latex_table*.make_multirow:	
+        Makes at multirow in the table
+        
+    *latex_table*.save:	
+        Save the table
+        
+    *latex_table*.set_formatters: 
+        Set strings that will encapsulate the corresponding element. Ex \textbf{}.
+        
+    *latex_table*.set_options:	
+        Change settings controlling the formatting and settings if the generated table.
+        
+    *latex_table*.set_uncertantiy:
+        Applies uncertainties to the existing data from a new vector or array by combining each element into \num{value + error}
+        
+    *latex_table*.set_units:
+        Sets units at the bottom of each column title. Formatted into \unit{} from siunitx
+
+    
+    Special Member Variables
+    -------------------------------------------------
+    
+    latex_table.table_path:
+        Lists the path to the directory where the saved tables will be placed.
+        It is static and typically only needs to be set one at the start of the script.
+    
+    Examples
+    -------------------------------------------------
+
+    Ex 1. Minimum working example
+        samples = ['A', 'B']
+        
+        data = [1, 2]
+        
+        column_names = ['Samples', 'Data']
+        
+        # These are all equiavalent
+        
+        lt = latex_table(column_names, samples, data)
+        
+        
+        lt = latex_table([samples, data], titles=column_names)
+        
+        lt = latex_table({'Sample' : ['A', 'B'], 'Data' : [1, 2]})
+    
+    Ex 2.
+        numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
+        [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
+        
+        isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
+        
+        A_error = [5,7,8,5]
+        
+        lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
+        isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
+        
+        lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
+        
+        lt.set_options(precision = [0,0,2,3,0], alignment = "lcccc") # Set the number of decimals on each column
+        
+        lt.set_uncertanty(A_error, -1) # Set error for the last column
+    
+    """
+    
+"Created on Mon Sep  9 10:43:17 2024"
 import numpy as np
 import matplotlib.pyplot as plt
 array = np.array
@@ -101,13 +180,6 @@ def format_brackets(string):
 class latex_table:
     
     r"""
-    =================
-    -----------------
-    LaTeX Table Saver
-    -----------------
-    =================
-    
-    Turn python datasets into a latex table.
             
     Constructor 
     -------------------------------------------------
@@ -149,54 +221,7 @@ class latex_table:
     -> Returns:
         Class instance of latex_table
         
-    Class Methods
-    -------------------------------------------------
-    
-    
-    Special Member Variables
-    -------------------------------------------------
-    
-    latex_table.table_path:
-        Lists the path to the directory where the saved tables will be placed.
-        It is static and typically only needs to be set one at the start of the script.
-    
-    Examples
-    -------------------------------------------------
-
-    Ex 1. Minimum working example
-        samples = ['A', 'B']
-        
-        data = [1, 2]
-        
-        column_names = ['Samples', 'Data']
-        
-        # These are all equiavalent
-        
-        lt = latex_table(column_names, samples, data)
-        
-        
-        lt = latex_table([samples, data], titles=column_names)
-        
-        lt = latex_table({'Sample' : ['A', 'B'], 'Data' : [1, 2]})
-    
-    Ex 2.
-        numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
-        [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
-        
-        isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
-        
-        A_error = [5,7,8,5]
-        
-        lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
-        isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
-        
-        lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
-        
-        lt.set_options(precision = [0,0,2,3,0], alignment = "lcccc") # Set the number of decimals on each column
-        
-        lt.set_uncertanty(A_error, -1) # Set error for the last column
-    
-    """
+"""
    
     import numpy as np
             
@@ -273,7 +298,7 @@ class latex_table:
         
         # Set defaults
         self.uncertanty = np.zeros_like(self.data)
-        self.formaters = np.full_like(self.data, "{}", dtype=object)
+        self.formatters = np.full_like(self.data, "{}", dtype=object)
         self.format_options = {"style" : "booktabs",
                                "nan_char" : nan_char,
                                "precision" : [6] * self.cols}
@@ -479,7 +504,7 @@ r"""\begin¤[table¤][{position}]
 
         
         
-    def set_formater(self, format_string, col = "single", row = "single"):
+    def set_formatters(self, format_string, col = "single", row = "single"):
         """Sets format options for the tabular. A latex command like \macro{} will be interpreted as \macro{tabular_cell}. 
         A command can be applied to entire row or column by only indexing one or the other. 
         Slices are also accepted.
@@ -501,14 +526,14 @@ r"""\begin¤[table¤][{position}]
             format_string = format_string.replace("{}", "¤[¤]").replace(
             "{", "¤[").replace("}", "¤]").replace("¤[¤]", "¤[{}¤]")
         if isinstance(col, str) and isinstance(row, str):
-            self.formaters[:,:] = format_string
+            self.formatters[:,:] = format_string
         elif isinstance(col, str) and not isinstance(row, str):
-            self.formaters[row,:] = format_string
+            self.formatters[row,:] = format_string
         elif not isinstance(col, str) and isinstance(row, str):
             print("hej")
-            self.formaters[:,col] = format_string
+            self.formatters[:,col] = format_string
         else:
-            self.formaters[col,row] = format_string
+            self.formatters[col,row] = format_string
             
    
 
@@ -655,23 +680,23 @@ r"""\begin¤[table¤][{position}]
         The function that makes the tabular of the table
         """
         str_data = [] # Data array with all values as strings
-        def format_column_element(i, p, error, formater):         
+        def format_column_element(i, p, error, formatter):         
             if isinstance(i, multicolumn) or isinstance(i, multirow) or isinstance(i, multirow_spacer):
                 i = str(i)
             if isinstance(i, str): # Dont format strings as floats, its bad
-                formater_string = "{}"
+                formatter_string = "{}"
             elif not np.isclose(error, 0):
-                formater_string = r"\num¤[{0:.{1}f} \pm {2:.{1}f}¤]"
+                formatter_string = r"\num¤[{0:.{1}f} \pm {2:.{1}f}¤]"
             else:
-                formater_string = "{0:.{1}f}"
+                formatter_string = "{0:.{1}f}"
                 
-            return format_brackets(formater.format(formater_string.format(i, p , error)))
+            return format_brackets(formatter.format(formatter_string.format(i, p , error)))
             
         for i, column in enumerate(self.data.values):
             L = [format_column_element(value, 
                                        self.format_options["precision"][j], 
                                        (self.uncertanty)[i][j], 
-                                       (self.formaters)[i][j])
+                                       (self.formatters)[i][j])
                  for j, value in enumerate(remove_spacer(column))]
             str_data.append(L)
 
@@ -690,7 +715,7 @@ r"""\begin¤[table¤][{position}]
             new_title.insert(index, -1, title_array)
             new_tabular.insert(index, -1, array) 
             
-            self.formaters = np.insert(self.formaters, index, "{}", axis=1)
+            self.formatters = np.insert(self.formatters, index, "{}", axis=1)
             self.uncertanty = np.insert(self.uncertanty, index, 0, axis=1)
             self.format_options["precision"].insert(index, 0)
             self.cols += 1
@@ -710,7 +735,7 @@ r"""\begin¤[table¤][{position}]
                 self.linebreaks["title"].insert(index, r"\\")
             elif target == "tabular":
                 new_tabular.insert(index, -1, array)                
-                self.formaters = np.insert(self.formaters, index, "{}", axis=0)
+                self.formatters = np.insert(self.formatters, index, "{}", axis=0)
                 self.uncertanty = np.insert(self.uncertanty, index, 0, axis=0)
                 self.linebreaks["tabular"].insert(index, r"\\")
 
@@ -739,7 +764,7 @@ if __name__ == "__main__":
     # print(lt.data[0][0].cline.covered_indicies() | (lt.data[1][0].cline.covered_indicies()))
     
    
-    lt.make_multirow("tabular", 0, 0, 3, "content")
+    lt.make_multirow("tabular", 0, 0, 2, "content")
     lt.make_multirow("tabular", 0, 2, 1, "content", insert = True)
     print(lt)
     # print(lt._make_table_body())
@@ -814,7 +839,7 @@ if __name__ == "__main__":
 # lt.set_options(precision = [0,0,2,3,0], alignment = "lcccc") # Set the number of decimals on each column
 
 # lt.set_uncertanty(A_error, -1) # Set error for the last column
-# lt.set_formater("bf", 2)
+# lt.set_formatter("bf", 2)
 # print(lt)
     
     

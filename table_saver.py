@@ -300,10 +300,21 @@ class latex_table:
         Class instance of latex_table
         
 """
-   
-    import numpy as np
-            
+
+
+    """
+    =======
+    Static Path
+    =======
+    """
     table_path = "" # Static path to the directory where tables are saved
+    
+    
+    """
+    =======
+    Constructor
+    =======
+    """
             
     def __init__(self, *data: "list/array" , titles: list = [], label: str = "", caption: str = "", **kwargs) -> "latex_table":  
         

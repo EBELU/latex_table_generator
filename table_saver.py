@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-
-
 r"""
     =================
     -----------------
@@ -86,28 +84,63 @@ r"""
     
 "Created on Mon Sep  9 10:43:17 2024"
 import numpy as np
-import matplotlib.pyplot as plt
-array = np.array
-import os, sys
-dir_path = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/") + "/"
-os.chdir(dir_path)
-import pandas as pd 
+import pandas as pd
+
+if __name__ == "__main__":
+    array = np.array
+# import matplotlib.pyplot as plt
+# import os, sys
+# dir_path = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/") + "/"
+# os.chdir(dir_path)
+
+"""
+-------------------------------------------------------------------------------
+===============================================================================
+
+                                 Helper Classes
+                    
+===============================================================================
+-------------------------------------------------------------------------------
+"""
+
 
 class multicolumn_spacer:
+    """
+    Class for filling space in the data arrays occupied by a multicolumn
+    
+    Does nothing except be there
+    """
     def __init__(self):
         pass
     def __eq__(self, o):
+        # Easy type check
+        # As it contains nothing all instances are equal
         return isinstance(o, multicolumn_spacer)
+    
+    
+    
 
 class multirow_spacer:
+    """
+    Same as above
+    
+    Does nothing except be there but can be formatted into an empty string.
+    This beacuse multirow requires the table to be symmetric while multicolumn is not
+    """
     def __init__(self):
         pass
     def __str__(self):
         return ""
     def __eq__(self, o):
         return isinstance(o, multirow_spacer)
+    
+    
+    
 
 class cline_obj:
+    """
+    Keep clines dynamic to shift them when now columns are inserted
+    """
     def __init__(self, start = 0, span = 0, string_val = ""):
         self.start = start + 1
         self.stop = start + span
@@ -122,6 +155,9 @@ class cline_obj:
         self.stop += val
     def covered_indicies(self):
         return set(np.arange(self.start - 1, self.stop))
+    
+    
+    
         
 class multicolumn:
     def __init__(self, starting_idx, span, content, clines = False, alignment = "c"):
@@ -146,6 +182,10 @@ class multicolumn:
     def __str__(self):
         return format_brackets(rf"\multicolumn¤[{self.span}¤]¤[{self.alignment}¤]¤[{self.content}¤]")
     
+    
+    
+    
+    
 class multirow:
     def __init__(self, starting_idx, span, content):
         self.span = span
@@ -158,14 +198,33 @@ class multirow:
     def __str__(self):
         return format_brackets(rf"\multirow¤[{self.span}¤]¤[*¤]¤[{self.content}¤]")
     
-
     
-# mc = multicolumn(4, 0)
-# mc.add_multicol(1, 3, "Hej", clines = True)
-# mc.add_multicol(0, 1, "Hej", clines =  False)
-# print(mc)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+"""
+-------------------------------------------------------------------------------
+===============================================================================
+
+                                Formatter functions
+                    
+===============================================================================
+-------------------------------------------------------------------------------
+"""
 
 def remove_spacer(L) -> list:
+    """
+    Removes multicolumn_spacer and multirow_spacer during formatting.
+    """
     return list(L[L != multicolumn_spacer()])
     
 def make_table_row(L: list, linebreak: str) -> str:
@@ -176,6 +235,25 @@ def format_brackets(string):
     """As {} is used by the python string formatter '¤[' and '¤]' are used insted. 
     This function replaces '¤[' and '¤]' with {} for use in Latex"""
     return string.replace("¤]", "}").replace("¤[", "{")
+
+
+
+
+
+
+
+
+
+
+"""
+-------------------------------------------------------------------------------
+===============================================================================
+
+                                   Main class
+                    
+===============================================================================
+-------------------------------------------------------------------------------
+"""
 
 class latex_table:
     
@@ -228,7 +306,6 @@ class latex_table:
     table_path = "" # Static path to the directory where tables are saved
             
     def __init__(self, *data: "list/array" , titles: list = [], label: str = "", caption: str = "", **kwargs) -> "latex_table":  
-        import numpy as np     
         
         # Check if nan_character is given to be used in the default arrays
         # Can probablly be done better
@@ -333,7 +410,6 @@ class latex_table:
 
         self.set_options(**kwargs)
         
-        # print(self.data,"\n", self.titles)
 
         
     def save(self, buf, abspath = False):
@@ -366,16 +442,12 @@ r"""\begin¤[table¤][{position}]
     \end¤[tabular¤]
 \end¤[table¤]""".format(titles = self._make_titles(), 
     body = self._make_table_body(), **self.table_options))
-        
     
-    def set_uncertanty(self, array, idx = None):
-        if isinstance(idx, type(None)) and array.shape != (self.cols, self.rows):
-            raise ValueError("")
-        elif isinstance(idx, type(None)):
-            self.uncertanty = array
-        elif isinstance(idx, slice) or isinstance(idx, int):
-            self.uncertanty.T[idx] = array
-            
+    """
+    =======
+    Multicolumn and multirow
+    =======
+    """
     def make_multicolumn(self, target: str, row_idx: int, start_idx: int, span: int, content: str, insert:bool = False, cline = False, alignment:str = "c"):
         """Insert a multicolumn into the table. It is recommended to do this after any multirows has been inserted to avoid yankyness.
 
@@ -431,9 +503,10 @@ r"""\begin¤[table¤][{position}]
                 self.linebreaks[target][row_idx]= [r"\\", new_multicol.cline]
             
     def make_multirow(self, target:str, column_idx:int, start_idx:int, span:int, content:str, insert:bool = False):
-        """Creates a multirow in the table. Either by inserting a new column or replacing elements.
+        """Creates a multirow in the table. Either by inserting into an existing column or making a new.
 
         Args:
+            target (str): Choose where to insert the multirow options are 'title'/'tabular' 
             column_idx (int): The desired index of the new column or index of column of column to be modified.
             start_idx (int): Index of the column where the multirow starts.
             span (int): How many rows the multirow should cover
@@ -493,6 +566,17 @@ r"""\begin¤[table¤][{position}]
                         for cl in linebreak_L:
                             if isinstance(cl, cline_obj) and cl.start >= start_idx:
                                 cl.shift(1)
+        
+    
+    def set_uncertanty(self, array, idx = None):
+        if isinstance(idx, type(None)) and array.shape != (self.cols, self.rows):
+            raise ValueError("")
+        elif isinstance(idx, type(None)):
+            self.uncertanty = array
+        elif isinstance(idx, slice) or isinstance(idx, int):
+            self.uncertanty.T[idx] = array
+            
+
         
             
     """=== WIP ==="""
@@ -708,22 +792,31 @@ r"""\begin¤[table¤][{position}]
             body += r"\bottomrule" # Finishing touches
         return body
     
+    
+    
+    
     def _insert(self, array, index, axis, target = None, title_array = []):
+        """
+        Universal insert function. Should only be used internally.
+        """
         if axis == "col": # Change columns
             new_tabular = self.data.copy()
             new_title = self.titles.copy()    
             new_title.insert(index, -1, title_array)
             new_tabular.insert(index, -1, array) 
             
+            # Change backend data
             self.formatters = np.insert(self.formatters, index, "{}", axis=1)
             self.uncertanty = np.insert(self.uncertanty, index, 0, axis=1)
             self.format_options["precision"].insert(index, 0)
             self.cols += 1
             self.table_options["alignment"] += self.table_options["alignment"][0]
             
+            
+            # Reset index
             new_tabular.columns = np.arange(len(new_tabular.columns))
             new_title.columns = np.arange(len(new_title.columns))
-            
+            # Apply new columns
             self.data = new_tabular
             self.titles = new_title
             
@@ -732,115 +825,28 @@ r"""\begin¤[table¤][{position}]
             new_title = self.titles.T.copy()  
             if target == "title":
                 new_title.insert(index, -1, array)
+                
+                # Change backend data
                 self.linebreaks["title"].insert(index, r"\\")
             elif target == "tabular":
-                new_tabular.insert(index, -1, array)                
+                new_tabular.insert(index, -1, array)    
+                
+                # Change backend data
                 self.formatters = np.insert(self.formatters, index, "{}", axis=0)
                 self.uncertanty = np.insert(self.uncertanty, index, 0, axis=0)
                 self.linebreaks["tabular"].insert(index, r"\\")
 
             self.rows += 1
-
+            
+            # Reset index
             new_tabular.columns = np.arange(len(new_tabular.columns))
             new_title.columns = np.arange(len(new_title.columns))
-            
+            # Apply new rows
             self.data = new_tabular.T
             self.titles = new_title.T
         
-        # print(np.array(new_titles, dtype = object), "\n\n", np.array(new_tabular, dtype = object), "\n\n" )
 
-if __name__ == "__main__":
-    samples = ['A', 'B']
-    data = [1, 2]
-    column_names = ["Samples", 'Data']
-    ser = pd.Series(column_names, dtype = object)
-    # These are all equiavalent
-    lt = latex_table(column_names, samples, data)
-    
-    # lt._insert(["H", "23"], 0, "row", target = "tabular", title_array=["tabular"])
-    
-    lt.make_multicolumn("tabular", 0, 0, 1, "content", cline = True, insert=False)
-    # lt.make_multicolumn("tabular", 0, 1, 1, "content", cline = True, insert=True)
-    # print(lt.data[0][0].cline.covered_indicies() | (lt.data[1][0].cline.covered_indicies()))
-    
-   
-    lt.make_multirow("tabular", 0, 0, 2, "content")
-    lt.make_multirow("tabular", 0, 2, 1, "content", insert = True)
-    print(lt)
-    # print(lt._make_table_body())
-    # lt = latex_table([samples, data], titles=column_names)
-    # lt = latex_table({'Sample' : ['A', 'B'], 'Data' : [1, 2]})
-    
-    # print(lt)
-    
-    # lt.make_multicolumn("title", 1, 0, 1, "content")
-    # lt.make_multicolumn("title", 1, 1, 1, "content")
-    # lt.make_multicolumn("title", 2, 0, 2, "content", cline = True)
-    
-    # # lt._insert(np.array(["H", "G"]), index = 2, axis = "col",  title_array=["Hello"])
-    
-    # lt.make_multirow(0, 0, 2, "content")
-    # lt.make_multirow(0, 1, 1, "contentdwaiuhi", True)
-    # print(lt)
-    # lt._insert(np.array(["h", 2]), 0, 1, target = "tabular")
 
-    # lt.set_style("grid")
-    latex_table.table_path = "/home/eewa/Documents/Kurser/MSFN02/Bildbehandling/Datorövningar/övn_rapport/"
-    # lt = latex_table(["Apa", ("AB", "AA"), "C", "D"], np.full((4,), "A"), *np.linspace(1, 2, 12).reshape((3,4)),
-    #                   label="tabel", caption="This is nice table")
-    # lt.set_units([r"", r"\g", r"\g", r"\g"])
-    # lt.set_style("grid")
-    # latex_table.__doc__
-    # lt.set_options(alignment = "cc|c|cc")
-    # lt.set_options(precision = [1,1,4,5])
-    
-    # lt.set_uncertanty(np.linspace(1,2, 4).reshape((1,4)), slice(3,4))
-    
-    # lt.save("test")
-    
-    # lt.save("test_table")
-    
-    # numpy_array_with_data = (np.array([[1332, 1173, 662, 356],
-    #                                   [1.00, 1.00, 0.85, 0.62],
-    #                                   [5.2711, 5.2711, 30.018, 10.539],
-    #                                   [392, 392, 346, 368]])) # Transpose to get correct col-row
-    
-
-    # numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
-    # [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
-    
-    # isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
-    
-    # A_error = [5,7,8,5]
-    
-    # lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
-    # isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
-    
-    # lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
-    
-    # lt.set_options(precision = [0,0,2,4,0], alignment = "lcccc") # Set the number of decimals on each column
-    
-    # lt.set_uncertanty(A_error, -1) # Set error for the last column
-    
-    # lt.save("test_table")
-
-# numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
-# [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
-
-# isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
-
-# A_error = [5,7,8,5]
-
-# lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
-# isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
-
-# lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
-
-# lt.set_options(precision = [0,0,2,3,0], alignment = "lcccc") # Set the number of decimals on each column
-
-# lt.set_uncertanty(A_error, -1) # Set error for the last column
-# lt.set_formatter("bf", 2)
-# print(lt)
     
     
 

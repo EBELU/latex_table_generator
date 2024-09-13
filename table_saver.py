@@ -12,62 +12,82 @@ array = np.array
 import os, sys
 dir_path = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/") + "/"
 os.chdir(dir_path)
-import pandas
+import pandas as pd 
 
+class multicolumn_spacer:
+    def __init__(self):
+        pass
+    def __eq__(self, o):
+        return isinstance(o, multicolumn_spacer)
 
+class multirow_spacer:
+    def __init__(self):
+        pass
+    def __str__(self):
+        return ""
+    def __eq__(self, o):
+        return isinstance(o, multirow_spacer)
+
+class cline_obj:
+    def __init__(self, start = 0, span = 0, string_val = ""):
+        self.start = start + 1
+        self.stop = start + span
+        self.string_val = string_val
+    def __str__(self):
+        if self.string_val:
+            return fr" \cline¤[{self.string_val}¤] "
+        else:
+            return fr" \cline¤[{self.start}-{self.stop}¤] "
+    def shift(self, val):
+        self.start += val
+        self.stop += val
+    def covered_indicies(self):
+        return set(np.arange(self.start - 1, self.stop))
+        
 class multicolumn:
-    def __init__(self, columns, placement):
-        self.columns = columns
-        self.placement = placement
-        self.row_list = [""] * columns
-        self.clines = []
-        self.occpied_indices = np.array([], dtype = int)
-    def add_multicol(self, starting_idx, span, content, clines = False, alignment = "c"):
-        self.sanity_check(starting_idx, span)     
-        L = self.row_list[:starting_idx + 1] + self.row_list[starting_idx + span:]
-        L[starting_idx] = rf"\multicolumn¤[{span}¤]¤[{alignment}¤]¤[{content}¤]"
-        self.row_list = L
-        
-        self.occpied_indices = np.append(self.occpied_indices, 
-                                         np.arange(starting_idx, starting_idx + span))
-        
-        if clines and not r"\hline" in self.clines:
+    def __init__(self, starting_idx, span, content, clines = False, alignment = "c"):
+        self.start_idx = starting_idx
+        self.span = span
+        self.content = content
+        self.alignment = alignment
+        self.cline = ""
+        if clines:
             if clines == r"hline":
-                self.clines.clear()
-                self.clines.append(r"\hline")
+                self.cline = cline_obj(string_val=r"\hline")
             elif isinstance(clines, str):
-                self.clines.append(fr"\clines¤[{clines}¤]")
+                self.cline = cline_obj(string_val=fr"\clines¤[{clines}¤]")
             else:
-                self.clines.append(
-                    fr"\cline¤[{starting_idx + 1}-{starting_idx + span}¤] ")
-                
-    def sanity_check(self, starting_idx, span):
-        if starting_idx>= self.columns:
-            raise IndexError("Starting index is out of bounds")
-        if starting_idx + span > self.columns:
-            raise IndexError("Span is out of bounds")
-        span_idx = np.arange(starting_idx, starting_idx + span)
-        if any(np.isin(span_idx, self.occpied_indices)):
-            raise IndexError(r"Multicolumns collide at index"
-                             f" {span_idx[np.isin(span_idx, self.occpied_indices)]}")
+                self.cline = cline_obj(starting_idx, span)
+ 
+    def shift(self, val):
+        self.start_idx += val
+        if isinstance(self.cline, cline_obj):
+            self.cline.shift(val)
             
-    def shift(self, index):
-        self.row_list.insert(0, "")
-        self.occpied_indices += 1
-        self.columns += 1
+    def __str__(self):
+        return format_brackets(rf"\multicolumn¤[{self.span}¤]¤[{self.alignment}¤]¤[{self.content}¤]")
+    
+class multirow:
+    def __init__(self, starting_idx, span, content):
+        self.span = span
+        self.content = content
+        self.start_idx = starting_idx
+        
+    def shift(self, val):
+        self.start_idx += val
         
     def __str__(self):
-        return format_brackets(make_table_row(
-            self.row_list, r"\\") + "\t" + "".join(self.clines) + "\n\t\t")
+        return format_brackets(rf"\multirow¤[{self.span}¤]¤[*¤]¤[{self.content}¤]")
     
-    def __eq__(self, multicol):
-        return self.placement == multicol.placement
-    def __lt__(self, multicol):
-        return self.placement < multicol.placement
+
+    
 # mc = multicolumn(4, 0)
 # mc.add_multicol(1, 3, "Hej", clines = True)
 # mc.add_multicol(0, 1, "Hej", clines =  False)
 # print(mc)
+
+def remove_spacer(L) -> list:
+    return list(L[L != multicolumn_spacer()])
     
 def make_table_row(L: list, linebreak: str) -> str:
     "Writes a table row from a list/array"
@@ -191,16 +211,21 @@ class latex_table:
             nan_char = kwargs["nan_char"]
         except KeyError:
             nan_char = r"\,"
-        
+            
+        if len(data) == 0:
+            raise ValueError("No data given")
+            
         if len(data) > 1:
             # Take the abitrary number of columns
             if titles:
                 # If titles are specific the first array is no longer the title array
                 data_lists = data
-                self.titles = np.array([titles], dtype=object)
+                titles = [pd.Series(titles)]
+                self.titles = pd.DataFrame(titles, dtype=object)
             else:
                 data_lists = list(data[1:])
-                self.titles = np.array([data[0]], dtype=object)
+                titles = [pd.Series(data[0])]
+                self.titles = pd.DataFrame(titles, dtype=object)
                 
             # Figure out the shape of the tabular
             self.rows = len(max(data_lists, key = len)) # Finds the logest sub-list
@@ -213,10 +238,11 @@ class latex_table:
             # Fill default list
             for i,L in enumerate(data_lists):
                 temp_data[i][:len(L)] = L
-            self.data = temp_data.T # Transpose so the data looks correct
+            self.data = pd.DataFrame(temp_data.T) # Transpose so the data looks correct
+            
         elif isinstance(data[0], dict):
             # Extract keys as the title-array
-            self.titles = np.array([list(data[0].keys())], dtype = object)
+            self.titles = pd.DataFrame(list(data[0].keys()), dtype = object)
             # Values set as the data array
             data_lists = list(data[0].values())
             
@@ -231,33 +257,25 @@ class latex_table:
             # Fill default list
             for i,L in enumerate(data_lists):
                 temp_data[i][:len(L)] = L
-            self.data = temp_data.T # Transpose so the data looks correct
+            self.data = pd.DataFrame(temp_data.T) # Transpose so the data looks correct
             
         else:
             if not titles: # Title must be specified when giving one array as blob
                 raise ValueError("column_titles must be specified as a keyword")
-            self.data = np.array(data[0])
-            self.titles = np.array([list(titles)], dtype = object)
+            self.data = pd.DataFrame([pd.Series(data[0])])
+            self.titles = pd.DataFrame(list(titles), dtype = object)
             self.rows, self.cols  = self.data.shape
         
-        if len(self.titles[0]) != self.cols:
+        if len(self.titles[0]) != self.cols and False:
             raise AssertionError(f"The length of title array, {len(self.titles) }, "
                                  f"does not match the number of columns, {self.cols}"
                                  f"\nAttempted title array: {self.titles}")
-        # self.data = pd.DataFrame(data)
-        # self.titles = list(column_titles)
-        # self.format_options["precision"] = [6] * self.cols       
-        # self.titles *= 2
-        
-        
-        # self.titles[1] = ["", "", r"\multicolumn{2}{c}{Multi}"]
         
         # Set defaults
         self.uncertanty = np.zeros_like(self.data)
         self.formaters = np.full_like(self.data, "{}", dtype=object)
         self.format_options = {"style" : "booktabs",
                                "nan_char" : nan_char,
-                               "linebreak" : r"\\",
                                "precision" : [6] * self.cols}
         
         self.table_options = {"caption" : caption,
@@ -266,12 +284,12 @@ class latex_table:
                         "alignment" : "c" * self.cols,
                         "position_float": r"\centering"}
         
-        mcl = multicolumn(2, 0)
-        mcl.add_multicol(0, 2, "content")
+        self.linebreaks = {"title" : [[r"\\"] for i in range(len(self.titles))],
+                           "tabular": [[r"\\"] for i in range(self.rows)]}
         
-        self.multicolumns = {"title" : [], "tabular": []}
+
                 
-        for i, column in enumerate(self.data.T):
+        for i, column in enumerate(self.data.to_numpy().T):
             most_decialms = min(np.array(column, dtype = str)) # Convert to strings and find smallest value
             # Handle floats that are ints and ints, must use the any-loop to handle int and str the same list
             if most_decialms.endswith(".0") or any(isinstance(element, int) for element in column):
@@ -289,7 +307,8 @@ class latex_table:
             
 
         self.set_options(**kwargs)
-
+        
+        # print(self.data,"\n", self.titles)
 
         
     def save(self, buf, abspath = False):
@@ -332,7 +351,7 @@ r"""\begin¤[table¤][{position}]
         elif isinstance(idx, slice) or isinstance(idx, int):
             self.uncertanty.T[idx] = array
             
-    def make_multicolumn(self, target: str, row_idx: int, start_idx: int, span: int, content: str, cline = False, alignment:str = "c"):
+    def make_multicolumn(self, target: str, row_idx: int, start_idx: int, span: int, content: str, insert:bool = False, cline = False, alignment:str = "c"):
         """Insert a multicolumn into the table. It is recommended to do this after any multirows has been inserted to avoid yankyness.
 
         Args:
@@ -340,7 +359,8 @@ r"""\begin¤[table¤][{position}]
             row_idx (int): Desired index of the row containing the multicolumn
             start_idx (int): Index of the column where the multicolumn starts.
             span (int): How many columns the multicolumn should cover.
-            content (str): Text to be displayed in the multicolumn
+            content (str): Text to be displayed in the multicolumn.
+            insert (bool, optional): If the new multicolumn is to be inserted into an existing row.
             cline (bool, optional): Set clines to the row containing the multicolumn. Options are:
             - True: The cline follows the multicolumn
             - 'hline': Removes all other cline options for the row and inserts \hline under the row.
@@ -348,19 +368,44 @@ r"""\begin¤[table¤][{position}]
             Defaults to False.
             alignment (str, optional): Sets the alignment of the multicolumn. Defaults to "c".
         """        
-        placement_L = [mc.placement for mc in self.multicolumns[target]]
-        if row_idx in placement_L:
-            idx = placement_L.index(row_idx)
-            row = self.multicolumns[target][idx]
-            row.add_multicol(start_idx, span, content, cline, alignment)
-            self.multicolumns[target][idx] = row
+        if target == "title":
+            target_array = self.titles
+        elif target == "tabular":
+            target_array = self.data
         else:
-            row = multicolumn(self.cols, row_idx)
-            row.add_multicol(start_idx, span, content, cline, alignment)
-            self.multicolumns[target].append(row)
+            raise KeyError("Invalid target. Valid targets are 'title'/'tabular'.")
+        
 
+        new_multicol = multicolumn(start_idx, span, content, clines=cline)
+        multi_col = [new_multicol] + [multicolumn_spacer()] * (span - 1)
             
-    def make_multirow(self, column_idx:int, start_idx:int, span:int, content:str, replace:bool = False):
+        if insert:
+            old_elements = target_array.iloc[row_idx][start_idx: start_idx + span]
+            for i, e in enumerate(old_elements):
+                if isinstance(e, multicolumn) or isinstance(e, multicolumn_spacer):
+                    raise AssertionError(f"Multicolumns collide at row {row_idx}, column {i + start_idx}")
+            
+            new_row = pd.concat([target_array.iloc[row_idx][:start_idx], pd.Series(multi_col), 
+                                target_array.iloc[row_idx][start_idx + span:]], ignore_index=True)
+            self.data.iloc[row_idx] = new_row
+
+            if cline:
+                self.linebreaks[target][row_idx].append(new_multicol.cline)
+
+        
+        else:
+            front_pad = start_idx - 1 if start_idx > 1 else 0
+            back_pad = self.cols - start_idx - span 
+            if back_pad < 0: back_pad = 0
+            
+            new_row = [""] * front_pad + multi_col + [""] * back_pad
+
+            self._insert(new_row, row_idx, "row", target)
+
+            if cline:
+                self.linebreaks[target][row_idx]= [r"\\", new_multicol.cline]
+            
+    def make_multirow(self, target:str, column_idx:int, start_idx:int, span:int, content:str, insert:bool = False):
         """Creates a multirow in the table. Either by inserting a new column or replacing elements.
 
         Args:
@@ -368,22 +413,61 @@ r"""\begin¤[table¤][{position}]
             start_idx (int): Index of the column where the multirow starts.
             span (int): How many rows the multirow should cover
             content (str): Text to be displayed in the multirow
-            replace (bool, optional): If False a new column is inserted with the multirow. If True existing element are erased to fit the multicolumn . Defaults to False.
-        """        
-        new_title_col = np.array([""] * len(self.titles), dtype=object)
-        new_tab_col = np.array([""] * self.rows, dtype=object)
-        multirow = format_brackets(fr"\multirow¤[{start_idx + 1}¤]¤[*¤]¤[{content}¤]")
-        new_tab_col[start_idx] = multirow
-        if replace:
-            for i in range(span):
-                self.data.T[column_idx][start_idx + i] = ""
-            self.data.T[column_idx][start_idx] = multirow
+            insert (bool, optional): If False a new column is inserted with the multirow. If True existing element are erased to fit the multicolumn . Defaults to False.
+        """      
+        if insert:
+            if target == "title":
+                target_array = self.titles
+            elif target == "tabular":
+                target_array = self.data
+            else:
+                raise KeyError("Invalid target. Valid targets are 'title'/'tabular'.")
+            old_elements = target_array[column_idx][start_idx: start_idx + span]
+            # print(old_elements)
+            for i, e in enumerate(old_elements):
+                if isinstance(e, multirow) or isinstance(e, multirow_spacer):
+                    raise AssertionError(f"Multirows collide at row {i + start_idx}, column {column_idx}")
+                    
+            new_multirow = [multirow(start_idx, span, content)] + [multirow_spacer()] * (span - 1)
+            new_column = pd.concat([target_array[column_idx][:start_idx], pd.Series(new_multirow), 
+                                    target_array[column_idx][start_idx + span:]], ignore_index=True)
+            
+            if target == "title":
+                self.titles[column_idx] = new_column
+            elif target == "tabular":
+                self.data[column_idx] = new_column
+            
+                
         else:
-            self._insert(new_tab_col, column_idx, "col", title_array=new_title_col)
-            for multicol in self.multicolumns["title"]:
-                multicol.shift(column_idx)
-            for multicol in self.multicolumns["tabular"]:
-                multicol.shift(column_idx)
+            empty_title_col = ["" for i in range(len(self.titles))]
+            empty_tab_col = ["" for i in range(self.rows)]            
+            new_multirow = [multirow(start_idx, span, content)] + [multirow_spacer()] * (span - 1)
+            if target == "title":
+                top_pad = start_idx - 1 if start_idx > 1 else 0
+                bottom_pad = len(self.titles) - start_idx - span 
+                if bottom_pad < 0: bottom_pad = 0
+                new_column = [""] * top_pad + new_multirow + [""] * bottom_pad
+                
+                self._insert(empty_tab_col, column_idx, "col", title_array=new_column)
+            elif target == "tabular":
+                top_pad = start_idx - 1 if start_idx > 1 else 0
+                bottom_pad = self.rows - start_idx - span 
+                if bottom_pad < 0: bottom_pad = 0
+                new_column = [""] * top_pad + new_multirow + [""] * bottom_pad
+                self._insert(new_column, column_idx, "col", title_array=empty_title_col)
+            else:
+                raise KeyError("Invalid target. Valid targets are 'title'/'tabular'.")
+                
+            if column_idx != self.rows:
+                idx_set = set()
+                for linebreak_L in self.linebreaks["title"] + self.linebreaks["tabular"]:
+                    idx_set = idx_set | set([c.start - 1 for c in linebreak_L if isinstance(c, cline_obj)])
+
+                if column_idx <= min(idx_set):
+                    for linebreak_L in self.linebreaks["title"] + self.linebreaks["tabular"]:
+                        for cl in linebreak_L:
+                            if isinstance(cl, cline_obj) and cl.start >= start_idx:
+                                cl.shift(1)
         
             
     """=== WIP ==="""
@@ -392,8 +476,7 @@ r"""\begin¤[table¤][{position}]
     # def insert_row(self, idx, data, target = "tabular"):
         
 
-        
-        
+
         
         
     def set_formater(self, format_string, col = "single", row = "single"):
@@ -420,7 +503,6 @@ r"""\begin¤[table¤][{position}]
         if isinstance(col, str) and isinstance(row, str):
             self.formaters[:,:] = format_string
         elif isinstance(col, str) and not isinstance(row, str):
-
             self.formaters[row,:] = format_string
         elif not isinstance(col, str) and isinstance(row, str):
             print("hej")
@@ -451,7 +533,6 @@ r"""\begin¤[table¤][{position}]
         Default format_options:
             'style': 'booktabs',
             'nan_char': r'\,', 
-            'linebreak': r'\\', 
             'precision': [6, 6,..., 6, 6]
         """
         
@@ -490,14 +571,19 @@ r"""\begin¤[table¤][{position}]
         half_enc_len = len(encapsulation) // 2
         for i, unit in enumerate(unit_array):
             if unit:
-                if not isinstance(self.titles[0][i], str):
+                print(self.titles[self.titles.columns[i]])
+                if not isinstance(self.titles.values[-1][i], str):
                     # If the title element is already a tuple it is extended. * breaks the old tuple
-                    self.titles[0][i] = (*self.titles[0][i], encapsulation[:half_enc_len] + 
+                    self.titles[self.titles.columns[i]] = (*self.titles.values[-1][i], encapsulation[:half_enc_len] + 
                                   format_brackets(fr"\unit¤[{unit}¤]") + encapsulation[half_enc_len:])
                 else:
-                    self.titles[0][i] = (self.titles[0][i], encapsulation[:half_enc_len] + 
-                                  format_brackets(fr"\unit¤[{unit}¤]") + encapsulation[half_enc_len:])
+                    self.titles[self.titles.columns[i]] = [(self.titles.values[-1][i], encapsulation[:half_enc_len] + 
+                                  format_brackets(fr"\unit¤[{unit}¤]") + encapsulation[half_enc_len:])]
                     
+                    
+                    # print((self.titles.values[-1][i], encapsulation[:half_enc_len] + 
+                    #              format_brackets(fr"\unit¤[{unit}¤]") + encapsulation[half_enc_len:]))
+
     def set_alignment(self, string):
         if len(string.replace("|", "")) < self.cols:
             raise ValueError("The number of alignment is less than"
@@ -512,6 +598,7 @@ r"""\begin¤[table¤][{position}]
                 raise ValueError("A precision must be specified for each column or universally with and int."
                                  f" Current columns: {self.cols}, given array was {len(new_precision)}")
             self.format_options["precision"] = list(new_precision)
+            
     def set_style(self, string):
         """
         Change the design of the table to use 'booktabs' or 'grid'
@@ -519,14 +606,14 @@ r"""\begin¤[table¤][{position}]
         match string:
             case "booktabs":
                 self.format_options["style"] = "booktabs"
-                self.format_options["linebreak"] = r"\\"
             case "grid":
                 self.format_options["style"] = "grid"
-                self.format_options["linebreak"] = r"\\ \hline"
                 self.table_options["alignment"] = ("|{}" * len(self.table_options["alignment"]) + "|").format(*self.table_options["alignment"])
             case _:
                 raise IndexError("Allowed options are 'booktabs' and 'grid'")
                 
+        
+        
                 
     """
     ==============
@@ -538,28 +625,22 @@ r"""\begin¤[table¤][{position}]
         The function that makes the title row for the table
         """
         title_str = ""
-        picked_multicolumns = 0
         def sub_tubular(L):
             """Breaks up a multi-row title into a tabular"""
             tabular = r"\begin{tabular}{c} "
             for string in L:
                 tabular += (string + r" \\ ")
             return tabular + r"\end{tabular}"
-        for i in range(len(self.titles) + len(self.multicolumns["title"])):
-            if i in [mc.placement for mc in self.multicolumns["title"]]:
-                title_str = str(self.multicolumns["title"][picked_multicolumns]) + title_str
-                picked_multicolumns += 1
-                continue
-            else:
-                title_row = self.titles[i - picked_multicolumns]
+        for i, title_row in enumerate(self.titles.values):
             title = []
-            for column_title in title_row:
+            for column_title in remove_spacer(title_row):
                 if not isinstance(column_title, str):
                     # If the title element is not a sting its sent to be broken up
                     title.append(sub_tubular(column_title))
                 else:
                     title.append(str(column_title))
-            title_str = (make_table_row(title, r"\\") + "\n\t\t") + title_str
+            linebreak = "".join([str(e) for e in self.linebreaks["title"][i]])
+            title_str = (make_table_row(title, linebreak) + "\n\t\t") + title_str
 
             
         # Make final touches depending on design of the table
@@ -574,7 +655,9 @@ r"""\begin¤[table¤][{position}]
         The function that makes the tabular of the table
         """
         str_data = [] # Data array with all values as strings
-        def format_column_element(i, p, error, formater):            
+        def format_column_element(i, p, error, formater):         
+            if isinstance(i, multicolumn) or isinstance(i, multirow) or isinstance(i, multirow_spacer):
+                i = str(i)
             if isinstance(i, str): # Dont format strings as floats, its bad
                 formater_string = "{}"
             elif not np.isclose(error, 0):
@@ -584,72 +667,96 @@ r"""\begin¤[table¤][{position}]
                 
             return format_brackets(formater.format(formater_string.format(i, p , error)))
             
-        for i, column in enumerate(self.data.T):
-            str_data.append(np.vectorize(format_column_element)(
-                column, self.format_options["precision"][i], (self.uncertanty.T)[i], (self.formaters.T)[i]))
-        str_data = np.array(str_data).T
+        for i, column in enumerate(self.data.values):
+            L = [format_column_element(value, 
+                                       self.format_options["precision"][j], 
+                                       (self.uncertanty)[i][j], 
+                                       (self.formaters)[i][j])
+                 for j, value in enumerate(remove_spacer(column))]
+            str_data.append(L)
 
         body = "" # String containing the tabluar
-        picked_multicolumns = 0
-        for i in range(self.rows + len(self.multicolumns["tabular"])):
-            if i in [mc.placement for mc in self.multicolumns["tabular"]]:
-                body += str(self.multicolumns["tabular"][picked_multicolumns])
-                picked_multicolumns += 1
-            else:
-                body += (make_table_row(str_data[i - picked_multicolumns], self.format_options["linebreak"]) + "\n\t\t") # New row is added 
+        for i in range(self.rows):
+            linebreak = "".join([str(e) for e in self.linebreaks["tabular"][i]])
+            body += (make_table_row(str_data[i], linebreak) + "\n\t\t") # New row is added 
         if self.format_options["style"] == "booktabs":
             body += r"\bottomrule" # Finishing touches
         return body
     
     def _insert(self, array, index, axis, target = None, title_array = []):
-
-        print(axis)
         if axis == "col": # Change columns
-            new_titles = np.insert(self.titles.copy(), index, title_array, axis = 1)
-            new_tabular = np.insert(self.data.copy(), index, array, axis = 1)
+            new_tabular = self.data.copy()
+            new_title = self.titles.copy()    
+            new_title.insert(index, -1, title_array)
+            new_tabular.insert(index, -1, array) 
             
-            print(new_titles, "\n\n", new_tabular)
             self.formaters = np.insert(self.formaters, index, "{}", axis=1)
             self.uncertanty = np.insert(self.uncertanty, index, 0, axis=1)
             self.format_options["precision"].insert(index, 0)
             self.cols += 1
+            self.table_options["alignment"] += self.table_options["alignment"][0]
+            
+            new_tabular.columns = np.arange(len(new_tabular.columns))
+            new_title.columns = np.arange(len(new_title.columns))
+            
+            self.data = new_tabular
+            self.titles = new_title
+            
         elif axis == "row": # Change row
-            new_titles = list(self.titles.copy())
-            new_tabular = list(self.data.copy())
+            new_tabular = self.data.T.copy()
+            new_title = self.titles.T.copy()  
             if target == "title":
-                new_titles.insert(index, array)
+                new_title.insert(index, -1, array)
+                self.linebreaks["title"].insert(index, r"\\")
             elif target == "tabular":
-                new_tabular.insert(index, array)
-                
+                new_tabular.insert(index, -1, array)                
                 self.formaters = np.insert(self.formaters, index, "{}", axis=0)
                 self.uncertanty = np.insert(self.uncertanty, index, 0, axis=0)
-                
+                self.linebreaks["tabular"].insert(index, r"\\")
+
             self.rows += 1
+
+            new_tabular.columns = np.arange(len(new_tabular.columns))
+            new_title.columns = np.arange(len(new_title.columns))
             
-        self.data = np.array(new_tabular, dtype=object)
-        self.titles = np.array(new_titles, dtype=object)
+            self.data = new_tabular.T
+            self.titles = new_title.T
+        
         # print(np.array(new_titles, dtype = object), "\n\n", np.array(new_tabular, dtype = object), "\n\n" )
 
 if __name__ == "__main__":
     samples = ['A', 'B']
     data = [1, 2]
-    column_names = ['Samples', 'Data']
+    column_names = ["Samples", 'Data']
+    ser = pd.Series(column_names, dtype = object)
     # These are all equiavalent
     lt = latex_table(column_names, samples, data)
+    
+    # lt._insert(["H", "23"], 0, "row", target = "tabular", title_array=["tabular"])
+    
+    lt.make_multicolumn("tabular", 0, 0, 1, "content", cline = True, insert=False)
+    # lt.make_multicolumn("tabular", 0, 1, 1, "content", cline = True, insert=True)
+    # print(lt.data[0][0].cline.covered_indicies() | (lt.data[1][0].cline.covered_indicies()))
+    
+   
+    lt.make_multirow("tabular", 0, 0, 3, "content")
+    lt.make_multirow("tabular", 0, 2, 1, "content", insert = True)
+    print(lt)
+    # print(lt._make_table_body())
     # lt = latex_table([samples, data], titles=column_names)
     # lt = latex_table({'Sample' : ['A', 'B'], 'Data' : [1, 2]})
     
     # print(lt)
     
-    lt.make_multicolumn("title", 1, 0, 1, "content")
-    lt.make_multicolumn("title", 1, 1, 1, "content")
-    lt.make_multicolumn("title", 2, 0, 2, "content", cline = True)
+    # lt.make_multicolumn("title", 1, 0, 1, "content")
+    # lt.make_multicolumn("title", 1, 1, 1, "content")
+    # lt.make_multicolumn("title", 2, 0, 2, "content", cline = True)
     
-    # lt._insert(np.array(["H", "G"]), index = 2, axis = "col",  title_array=["Hello"])
+    # # lt._insert(np.array(["H", "G"]), index = 2, axis = "col",  title_array=["Hello"])
     
-    lt.make_multirow(0, 0, 2, "content")
-    lt.make_multirow(0, 1, 1, "contentdwaiuhi", True)
-    print(lt)
+    # lt.make_multirow(0, 0, 2, "content")
+    # lt.make_multirow(0, 1, 1, "contentdwaiuhi", True)
+    # print(lt)
     # lt._insert(np.array(["h", 2]), 0, 1, target = "tabular")
 
     # lt.set_style("grid")
@@ -666,7 +773,7 @@ if __name__ == "__main__":
     
     # lt.save("test")
     
-    lt.save("test_table")
+    # lt.save("test_table")
     
     # numpy_array_with_data = (np.array([[1332, 1173, 662, 356],
     #                                   [1.00, 1.00, 0.85, 0.62],
@@ -692,6 +799,23 @@ if __name__ == "__main__":
     
     # lt.save("test_table")
 
+# numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
+# [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
+
+# isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
+
+# A_error = [5,7,8,5]
+
+# lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
+# isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
+
+# lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
+
+# lt.set_options(precision = [0,0,2,3,0], alignment = "lcccc") # Set the number of decimals on each column
+
+# lt.set_uncertanty(A_error, -1) # Set error for the last column
+# lt.set_formater("bf", 2)
+# print(lt)
     
     
 

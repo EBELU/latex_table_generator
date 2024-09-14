@@ -7,6 +7,7 @@ r"""
     =================
     
     Provides the *latex_table* class to turn sets of data into latex table.
+    Printing the latex_table object prints the formatted table ready to be copy and pasted.
     
     This module also allows for some formating of the table, like precision in numbers, adding multicolumns
     or multirows and smoothly applies units to column titles (requiers siunitx).
@@ -22,7 +23,7 @@ r"""
         Makes at multirow in the table
         
     *latex_table*.save:	
-        Save the table
+        Save the table to a file
         
     *latex_table*.set_formatters: 
         Set strings that will encapsulate the corresponding element. Ex \textbf{}.
@@ -32,7 +33,7 @@ r"""
         Ex alignment string, number of decimals
         
     *latex_table*.set_uncertantiy:
-        Applies uncertainties to the existing data from a new vector or array by combining each element into \num{value + error}
+        Applies uncertainties to the existing data from a new vector or array by combining each element into \num{value \pm error}
         
     *latex_table*.set_units:
         Sets units at the bottom of each column title. Formatted into \unit{} from siunitx
@@ -576,7 +577,7 @@ r"""\begin¤[table¤][{position}]
             else:
                 raise KeyError("Invalid target. Valid targets are 'title'/'tabular'.")
                 
-            if column_idx != self.rows + 1:
+            if column_idx != self.cols:
                 idx_set = set()
                 for linebreak_L in self.linebreaks["title"] + self.linebreaks["tabular"]:
                     idx_set = idx_set | set([c.start - 1 for c in linebreak_L if isinstance(c, cline_obj)])

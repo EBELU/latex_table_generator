@@ -28,7 +28,8 @@ r"""
         Set strings that will encapsulate the corresponding element. Ex \textbf{}.
         
     *latex_table*.set_options:	
-        Change settings controlling the formatting and settings if the generated table.
+        Change settings controlling the formatting and settings of the generated table.
+        Ex alignment string, number of decimals
         
     *latex_table*.set_uncertantiy:
         Applies uncertainties to the existing data from a new vector or array by combining each element into \num{value + error}
@@ -170,7 +171,7 @@ class multicolumn:
             if clines == r"hline":
                 self.cline = cline_obj(string_val=r"\hline")
             elif isinstance(clines, str):
-                self.cline = cline_obj(string_val=fr"\clines¤[{clines}¤]")
+                self.cline = cline_obj(string_val=clines)
             else:
                 self.cline = cline_obj(starting_idx, span)
  
@@ -374,9 +375,11 @@ class latex_table:
             
         else:
             if not titles: # Title must be specified when giving one array as blob
-                raise ValueError("column_titles must be specified as a keyword")
-            self.data = pd.DataFrame([pd.Series(data[0])])
-            self.titles = pd.DataFrame(list(titles), dtype = object)
+                raise ValueError("titles= must be specified as a"+
+                                 " keyword when giving a single data array")
+            self.data = pd.DataFrame(data[0])
+            self.titles = pd.DataFrame([pd.Series(list(titles))], dtype = object)
+            print(self.titles)
             self.rows, self.cols  = self.data.shape
         
         if len(self.titles[0]) != self.cols and False:
@@ -459,7 +462,8 @@ r"""\begin¤[table¤][{position}]
     Multicolumn and multirow
     =======
     """
-    def make_multicolumn(self, target: str, row_idx: int, start_idx: int, span: int, content: str, insert:bool = False, cline = False, alignment:str = "c"):
+    def make_multicolumn(self, target: str, row_idx: int, start_idx: int, span: int, content: str,
+                         insert:bool = False, cline = False, alignment:str = "c"):
         """Insert a multicolumn into the table. It is recommended to do this after any multirows has been inserted to avoid yankyness.
 
         Args:
@@ -495,7 +499,11 @@ r"""\begin¤[table¤][{position}]
             
             new_row = pd.concat([target_array.iloc[row_idx][:start_idx], pd.Series(multi_col), 
                                 target_array.iloc[row_idx][start_idx + span:]], ignore_index=True)
-            self.data.iloc[row_idx] = new_row
+            
+            if target == "title":
+                self.titles.iloc[row_idx] = new_row
+            else:
+                self.data.iloc[row_idx] = new_row
 
             if cline:
                 self.linebreaks[target][row_idx].append(new_multicol.cline)
@@ -513,7 +521,8 @@ r"""\begin¤[table¤][{position}]
             if cline:
                 self.linebreaks[target][row_idx]= [r"\\", new_multicol.cline]
             
-    def make_multirow(self, target:str, column_idx:int, start_idx:int, span:int, content:str, insert:bool = False):
+    def make_multirow(self, target:str, column_idx:int, start_idx:int, span:int, content:str,
+                      insert:bool = False):
         """Creates a multirow in the table. Either by inserting into an existing column or making a new.
 
         Args:
@@ -567,17 +576,17 @@ r"""\begin¤[table¤][{position}]
             else:
                 raise KeyError("Invalid target. Valid targets are 'title'/'tabular'.")
                 
-            if column_idx != self.rows:
+            if column_idx != self.rows + 1:
                 idx_set = set()
                 for linebreak_L in self.linebreaks["title"] + self.linebreaks["tabular"]:
                     idx_set = idx_set | set([c.start - 1 for c in linebreak_L if isinstance(c, cline_obj)])
-
-                if column_idx <= min(idx_set):
+                if column_idx <= max(idx_set):
                     for linebreak_L in self.linebreaks["title"] + self.linebreaks["tabular"]:
                         for cl in linebreak_L:
                             if isinstance(cl, cline_obj) and cl.start >= start_idx:
                                 cl.shift(1)
-        
+    
+    
     
     def set_uncertanty(self, array, idx = None):
         if isinstance(idx, type(None)) and array.shape != (self.cols, self.rows):
@@ -625,7 +634,6 @@ r"""\begin¤[table¤][{position}]
         elif isinstance(col, str) and not isinstance(row, str):
             self.formatters[row,:] = format_string
         elif not isinstance(col, str) and isinstance(row, str):
-            print("hej")
             self.formatters[:,col] = format_string
         else:
             self.formatters[col,row] = format_string
@@ -754,6 +762,10 @@ r"""\begin¤[table¤][{position}]
         for i, title_row in enumerate(self.titles.values):
             title = []
             for column_title in remove_spacer(title_row):
+                if (isinstance(column_title, multicolumn) or 
+                    isinstance(column_title, multirow) or 
+                    isinstance(column_title, multirow_spacer)):
+                    column_title = str(column_title)
                 if not isinstance(column_title, str):
                     # If the title element is not a sting its sent to be broken up
                     title.append(sub_tubular(column_title))
@@ -838,16 +850,16 @@ r"""\begin¤[table¤][{position}]
                 new_title.insert(index, -1, array)
                 
                 # Change backend data
-                self.linebreaks["title"].insert(index, r"\\")
+                self.linebreaks["title"].insert(index, [r"\\"])
             elif target == "tabular":
                 new_tabular.insert(index, -1, array)    
                 
                 # Change backend data
                 self.formatters = np.insert(self.formatters, index, "{}", axis=0)
                 self.uncertanty = np.insert(self.uncertanty, index, 0, axis=0)
-                self.linebreaks["tabular"].insert(index, r"\\")
+                self.linebreaks["tabular"].insert(index, [r"\\"])
 
-            self.rows += 1
+                self.rows += 1
             
             # Reset index
             new_tabular.columns = np.arange(len(new_tabular.columns))

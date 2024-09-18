@@ -385,7 +385,7 @@ class latex_table:
                                  " keyword when giving a single data array")
             self.data = pd.DataFrame(data[0])
             self.titles = pd.DataFrame([pd.Series(list(titles))], dtype = object)
-            print(self.titles)
+            # print(self.titles)
             self.rows, self.cols  = self.data.shape
         
         if len(self.titles[0]) != self.cols and False:
@@ -410,7 +410,6 @@ class latex_table:
         self.linebreaks = {"title" : [[r"\\"] for i in range(len(self.titles))],
                            "tabular": [[r"\\"] for i in range(self.rows)]}
         
-
                 
         for i, column in enumerate(self.data.to_numpy().T):
             most_decialms = min(np.array(column, dtype = str)) # Convert to strings and find smallest value
@@ -497,7 +496,7 @@ r"""\begin¤[table¤][{position}]
         if alignment == "default":
             alignment = self.format_options["multicol_alignment"]
             
-        new_multicol = multicolumn(start_idx, span, content, clines=cline)
+        new_multicol = multicolumn(start_idx, span, content, clines=cline, alignment=alignment)
         multi_col = [new_multicol] + [multicolumn_spacer()] * (span - 1)
             
         if insert:
@@ -686,7 +685,7 @@ r"""\begin¤[table¤][{position}]
             elif key in self.format_options:
                 match key:
                     case "style":
-                        self.set_lines(item)
+                        self.set_style(item)
                     case "precision":
                         self.set_precision(item)
                     case _:
@@ -711,7 +710,7 @@ r"""\begin¤[table¤][{position}]
         half_enc_len = len(encapsulation) // 2
         for i, unit in enumerate(unit_array):
             if unit:
-                print(self.titles[self.titles.columns[i]])
+                # print(self.titles[self.titles.columns[i]])
                 if not isinstance(self.titles.values[-1][i], str):
                     # If the title element is already a tuple it is extended. * breaks the old tuple
                     self.titles[self.titles.columns[i]] = (*self.titles.values[-1][i], encapsulation[:half_enc_len] + 
@@ -747,7 +746,8 @@ r"""\begin¤[table¤][{position}]
                 self.format_options["style"] = "grid"
                 self.format_options["multicol_alignment"] = "|c|"
                 self.table_options["alignment"] = ("|{}" * len(self.table_options["alignment"]) + "|").format(*self.table_options["alignment"])
-                self.linebreaks["tabular"] = [[r"\\", cline_obj(string_val="hline")] for i in self.linebreaks]
+                self._check_lines()
+                self.linebreaks["tabular"][-1].append(" \hline")
             case _:
                 raise IndexError("Allowed options are 'booktabs' and 'grid'")
                 
@@ -917,8 +917,8 @@ r"""\begin¤[table¤][{position}]
  
 
         print("\n", line)
-        print("Table Titles:")
-        print(show_cpy_title)
+        print("Table Titles (Transposed!):")
+        print(show_cpy_title.T)
         print("\n", line)
         print("Table Tabular:")
         print(show_cpy_tab)
@@ -951,49 +951,52 @@ r"""\begin¤[table¤][{position}]
             # print(idx_column)
             return idx_column
         
-        idx_array = np.array([check_column(col) for col in self.data.copy().to_numpy().T]).T
-        for i, row in enumerate(idx_array):
-            counter = 0
+        idx_array = np.array([np.array(check_column(col), dtype=bool) 
+                              for col in self.data.copy().to_numpy().T]).T
+        # print(len(idx_array))
+        for i, bool_row in enumerate(idx_array):
+            idx_array = np.where(bool_row, None, (np.arange(len(bool_row))))
+            idx_array = np.array(idx_array, dtype=str)
+            idx_str_L = "".join(idx_array).split("None")
             new_breakline = [r"\\"]
-            for i, element in enumerate(row):
-                if not element:
-                    counter += 1
-                elif counter > 0:
-                    new_breakline.append(cline_obj(i - counter, counter))
-                    counter = 0
-            if counter == len(row):
-                new_breakline.append(cline_obj(string_val="hline"))
-            elif counter > 0:
-                new_breakline.append(cline_obj(i - counter + 1, counter))
-            print(new_breakline)
-        
-
+            for j, line_string in enumerate(idx_str_L):
+                if len(line_string) == self.cols:
+                    new_breakline.append(cline_obj(string_val="hline"))
+                elif line_string:
+                    # print(cline_obj(int(line_string[0]), len(line_string)))
+                    new_breakline.append(cline_obj(int(line_string[0]), len(line_string)))
+                # print(line_string)
+            # print(i, len(self.linebreaks["tabular"]))
+            self.linebreaks["tabular"][i] = new_breakline
         
 if __name__ == "__main__":
-    samples = ['A', 'B']
-    data = [1, 2]
-    column_names = [r"\textbf{Samples}", 'Data']
-    ser = pd.Series(column_names, dtype = object)
-    # These are all equiavalent
-    lt = latex_table(column_names, samples, data)
-    # lt.set_formatters("bf", 1,1)
-    # lt.make_multirow("tabular", 1, 0, 2, "content")
+    # samples = ['A', 'B']
+    # data = [1, 2]
+    # column_names = [r"\textbf{Samples}", 'Data']
+    # ser = pd.Series(column_names, dtype = object)
+    # # These are all equiavalent
+    # lt = latex_table(column_names, samples, data)
+    # # lt.set_formatters("bf", 1,1)
+    # # lt.make_multirow("tabular", 1, 0, 2, "content")
 
     
-    # lt._insert(["H", "23"], 0, "row", target = "tabular", title_array=["tabular"])
+    # # lt._insert(["H", "23"], 0, "row", target = "tabular", title_array=["tabular"])
     
-    lt.make_multicolumn("tabular", 0, 0, 1, "content", cline = True, insert=False)
-    lt.make_multicolumn("tabular", 0, 1, 1, "content", cline = True, insert=True)
-    # print(lt.data[0][0].cline.covered_indicies() | (lt.data[1][0].cline.covered_indicies()))
+    # lt.make_multicolumn("tabular", 0, 0, 1, "content", cline = True, insert=False, alignment="c|")
+    # lt.make_multicolumn("tabular", 0, 1, 1, "content", cline = True, insert=True, alignment="c|")
+    # # print(lt.data[0][0].cline.covered_indicies() | (lt.data[1][0].cline.covered_indicies()))
     
    
-    lt.make_multirow("tabular", 0, 0, 2, "content")
-    lt.make_multirow("tabular", 0, 2, 1, "content", insert = True)
-    lt.make_multirow("tabular", 3, 0, 2, "content")
-    lt._check_lines()
-    # print(lt._make_table_body())
-    # lt = latex_table([samples, data], titles=column_names)
-    # lt = latex_table({'Sample' : ['A', 'B'], 'Data' : [1, 2]})
+    # lt.make_multirow("tabular", 0, 0, 2, "content")
+    # lt.make_multirow("tabular", 0, 2, 1, "content", insert = True)
+    # lt.make_multirow("tabular", 3, 0, 3, "content")
+    
+
+    # # lt._check_lines()
+    # lt.set_style("grid")
+    # # print(lt._make_table_body())
+    # # lt = latex_table([samples, data], titles=column_names)
+    # # lt = latex_table({'Sample' : ['A', 'B'], 'Data' : [1, 2]})
     
     # print(lt)
     
@@ -1038,21 +1041,21 @@ if __name__ == "__main__":
     # lt = latex_table(numpy_array_with_data, titles=[("A", "AC"), "B", "C", "D"])
     # print(lt)
 
-    # numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
-    # [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
+    numpy_array_with_data = (np.array([[1332, 1173, 662, 356], [1.00, 1.00, 0.85, 0.62], 
+    [5.2711, 5.2711, 30.018, 10.539], [392, 392, 346, 368]]))
     
-    # isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
+    isotopes = [r'\atom{Co}{60}', r'\atom{Co}{60}', r'\atom{I}{137}', r'\atom{Ba}{133}']
     
-    # A_error = [5,7,8,5]
+    A_error = [5,7,8,5]
     
-    # lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
-    # isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
+    lt = latex_table(['Isotope','Energy', 'I', r'T', 'A'], 
+    isotopes, *numpy_array_with_data, caption='A nice table', label='a_nice_label')
     
-    # lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
+    lt.set_units(['', r'\kilo\electronvolt', '',  'y','\kilo Bq']) # Add units to the column
     
-    # lt.set_options(precision = [0,0,2,4,0], alignment = "lcccc") # Set the number of decimals on each column
+    lt.set_options(precision = [0,0,2,4,0], alignment = "lcccc", style = "grid") # Set the number of decimals on each column
     
-    # lt.set_uncertanty(A_error, -1) # Set error for the last column
+    lt.set_uncertanty(A_error, -1) # Set error for the last column
     
     # lt.save("test_table")
     

@@ -710,7 +710,6 @@ r"""\begin¤[table¤][{position}]
         half_enc_len = len(encapsulation) // 2
         for i, unit in enumerate(unit_array):
             if unit:
-                # print(self.titles[self.titles.columns[i]])
                 if not isinstance(self.titles.values[-1][i], str):
                     # If the title element is already a tuple it is extended. * breaks the old tuple
                     self.titles[self.titles.columns[i]] = (*self.titles.values[-1][i], encapsulation[:half_enc_len] + 
@@ -744,8 +743,9 @@ r"""\begin¤[table¤][{position}]
                 self.format_options["style"] = "booktabs"
             case "grid":
                 self.format_options["style"] = "grid"
-                self.format_options["multicol_alignment"] = "|c|"
-                self.table_options["alignment"] = ("|{}" * len(self.table_options["alignment"]) + "|").format(*self.table_options["alignment"])
+                self.format_options["multicol_alignment"] = f"|{self.format_options['multicol_alignment']}|"
+                # self.table_options["alignment"] = ("|{}" * len(self.table_options["alignment"]) + "|").format(*self.table_options["alignment"])
+                self.table_options["alignment"] = "".join(f"|{c}|" for c in self.table_options["alignment"] if c != "|")
                 self._check_lines()
                 self.linebreaks["tabular"][-1].append(" \hline")
             case _:
@@ -948,12 +948,10 @@ r"""\begin¤[table¤][{position}]
                 if isinstance(column[i], multirow) or isinstance(column[i], multirow_spacer):
                     if isinstance(column[i+1], multirow_spacer):
                         idx_column[i] = 1
-            # print(idx_column)
             return idx_column
         
         idx_array = np.array([np.array(check_column(col), dtype=bool) 
                               for col in self.data.copy().to_numpy().T]).T
-        # print(len(idx_array))
         for i, bool_row in enumerate(idx_array):
             idx_array = np.where(bool_row, None, (np.arange(len(bool_row))))
             idx_array = np.array(idx_array, dtype=str)
@@ -963,10 +961,7 @@ r"""\begin¤[table¤][{position}]
                 if len(line_string) == self.cols:
                     new_breakline.append(cline_obj(string_val="hline"))
                 elif line_string:
-                    # print(cline_obj(int(line_string[0]), len(line_string)))
                     new_breakline.append(cline_obj(int(line_string[0]), len(line_string)))
-                # print(line_string)
-            # print(i, len(self.linebreaks["tabular"]))
             self.linebreaks["tabular"][i] = new_breakline
         
 if __name__ == "__main__":

@@ -214,8 +214,7 @@ class multirow:
     
     
     
-    
-    
+
     
 
 """
@@ -243,8 +242,36 @@ def format_brackets(string):
     This function replaces '¤[' and '¤]' with {} for use in Latex"""
     return string.replace("¤]", "}").replace("¤[", "{")
 
+def latex_formatter(macros:list, targets:list) -> list:  
+    """Apply a list of string representing latex macros to a list of text strings.
 
+    Args:
+        macros (list/str): A string or list of strings representing latex macros without closed '{}'. Backslash '\' is optional.
+        targets (list): A list of text strings.
 
+    Returns:
+        list: List of text strings now given to the macros as arguments.
+    """    
+    def apply_formater(obj, formatter):
+        if obj:
+            return fr"{formatter}¤[{obj}¤]"
+        else:
+            return ""
+    # Vectorize function to avoid loops
+    vec_format_brackets = np.vectorize(format_brackets)
+    vec_apply_formatter = np.vectorize(apply_formater)
+    backslash = "\string"[0] # Define a single backslash cos strings are dumb
+    
+    # Case if only one string is given
+    if isinstance(macros, str):
+        macros = [macros]
+        
+    for form in macros:
+        # Check if a backslash is already there
+        if not form.startswith(backslash):
+            form = backslash + form
+        targets = vec_apply_formatter(targets, form)
+    return vec_format_brackets(targets)
 
 
 
@@ -745,7 +772,7 @@ r"""\begin¤[table¤][{position}]
                 self.format_options["style"] = "grid"
                 self.format_options["multicol_alignment"] = f"|{self.format_options['multicol_alignment']}|"
                 # self.table_options["alignment"] = ("|{}" * len(self.table_options["alignment"]) + "|").format(*self.table_options["alignment"])
-                self.table_options["alignment"] = "".join(f"|{c}|" for c in self.table_options["alignment"] if c != "|")
+                self.table_options["alignment"] = "".join(f"|{c}" for c in self.table_options["alignment"] if c != "|") + "|"
                 self._check_lines()
                 self.linebreaks["tabular"][-1].append(" \hline")
             case _:

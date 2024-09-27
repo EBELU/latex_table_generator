@@ -9,6 +9,7 @@ import os
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 import numpy as np
 from src.latex_table import latex_table
+from src.helper_functions import latex_formatter
 
 def demo1():
     "Minimum working example"
@@ -67,7 +68,7 @@ def demo3():
     # Make multicolumns for columns 1-2 and 3-4
     lt.make_multicolumn("title", 1, 1, 2, r"$h\nu ' \pm \sigma$", cline=True)
     lt.make_multicolumn("title", 1, 3, 2, r"$\kn{rel}$", insert=True, cline=True)
-    # Put the theta in a multi row for centering
+    # Put the theta in a multirow for centering
     lt.make_multirow("title", 0, 1, 2, r"$\theta$", insert=True)
     # Specify the first column as angles with siunitx \ang{}
     lt.set_formatters(r"\ang{}", col=0)
@@ -76,6 +77,9 @@ def demo3():
     # Uncertanty for the second row is not constant and is set with an array
     lt.set_uncertanty([40,40,40,30], 2)
     print(lt)
-    
-demo3()
+
+def demo_latex_formatter():
+    L = latex_formatter(r"textbf", [1,2,3])
+    print(L)
+
 

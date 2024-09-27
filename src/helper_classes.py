@@ -21,8 +21,7 @@ def remove_spacer(L) -> list:
     return list(L[L != multicolumn_spacer()])
 
 def is_multi(obj):
-    return (isinstance(obj, multicolumn) or isinstance(obj, multicolumn_spacer) or 
-            isinstance(obj, multirow) or isinstance(obj, multirow_spacer))
+    return isinstance(obj, (multicolumn, multicolumn_spacer, multirow, multirow_spacer))
 
 class multicolumn_spacer:
     """

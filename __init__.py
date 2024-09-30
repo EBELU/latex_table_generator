@@ -6,13 +6,14 @@ r"""
     -----------------
     =================
     
-    Provides the *latex_table* class to turn sets of data into latex table. 
+    Provides the *latex_table* class to turn sets of data into latex tables. 
     The function *latex_formatter* can be used to apply macros to a list of strings.
     Printing the latex_table object prints the formatted table ready to be copy and pasted.
     
-    This module also allows for some formating of the table, like precision in numbers, adding multicolumns
-    or multirows and smoothly applies units to column titles (requiers siunitx).
+    This module also allows for some formatting of the table, like precision in numbers, adding multicolumns
+    or multirows and smoothly applies units to column titles (requires siunitx).
     
+    Recommended import: from latex_table_generator import latex_table, latex_formatter
     
     @author: Erik Ewald
     
@@ -22,10 +23,10 @@ r"""
         Show info of current content and settings of the table.
     
     *latex_table*.make_multicolumn:
-        Makes at multicolumn in the table
+        Makes a multicolumn in the table
         
     *latex_table*.make_multirow:	
-        Makes at multirow in the table
+        Makes a multirow in the table
         
     *latex_table*.save:	
         Save the table to a file

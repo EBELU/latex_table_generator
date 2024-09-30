@@ -32,18 +32,18 @@ class latex_table:
         
         2. latex_table(arr_titles, arr_0, arr_1,..., **kwargs)
         Given an arbitrary number of 1D-arrays representing the columns of the table. 
-        If the 'titles'-argument is empty the first array given is implicitly set as the titels.
+        If the 'titles'-argument is empty the first array given is implicitly set as the titles.
         The arrays are not required to be of the same length.
         
         3. latex_table(dict, **kwargs)
         Given a dictionary containing 1D-arrays representing the columns of the table.
-        The indices are interpreted as the column titles.
+        The keys are interpreted as the column titles.
         The arrays are not required to be of the same length.
     
     titles: array-like
         Array like object containing strings och tuples/lists of strings representing the column titles of the tables.
         The array must have the same length as the number of column in the table.
-        A tuple/list given as a single title will be expanded into a titles consiting of several rows.
+        A tuple/list given as a single title will be expanded into a titles consisting of several rows.
         
     label: str
         The label placed into \label{...} of the table.
@@ -53,7 +53,7 @@ class latex_table:
         The text placed into \caption{...} of the table.
         
     **kwargs:
-        Key word arguments passed to the set_options method. See set_options for valid kwargs.
+        Key-word arguments passed to the set_options method. See set_options for valid kwargs.
         
         
     -> Returns:
